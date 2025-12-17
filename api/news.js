@@ -1,20 +1,16 @@
 import { put, list } from '@vercel/blob';
 
-export const config = {
-  runtime: 'edge',
-};
+// Remove 'runtime: edge' to use default Node.js runtime
 
-export default async function handler(req) {
-  // CORS
+export default async function handler(req, res) {
+  // CORS configuration
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight request
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
+    return res.status(200).end();
   }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -22,10 +18,10 @@ export default async function handler(req) {
   // Check if Blob is configured
   if (!token) {
     if (req.method === 'GET') {
-        // Return empty array gracefully if not configured, to allow UI demo to work
-        return new Response(JSON.stringify([]), { status: 200, headers: {'Content-Type': 'application/json'} });
+        // Return empty array gracefully if not configured
+        return res.status(200).json([]);
     }
-    return new Response(JSON.stringify({ error: "Vercel Blob token not found" }), { status: 503 });
+    return res.status(503).json({ error: "Vercel Blob token not found" });
   }
 
   try {
@@ -35,46 +31,35 @@ export default async function handler(req) {
       const newsBlob = blobs.find(b => b.pathname === 'news.json');
 
       if (!newsBlob) {
-        return new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return res.status(200).json([]);
       }
 
       // Fetch the actual JSON content from the blob URL
+      // Node.js 18+ supports global fetch
       const dataRes = await fetch(newsBlob.url);
       const data = await dataRes.json();
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
-      const body = await req.json();
+      // In Vercel Node.js functions, req.body is already parsed if content-type is json
+      const body = req.body;
       
       // Save/Overwrite 'news.json'
-      // addRandomSuffix: false ensures we keep the same filename like a database
       await put('news.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
         token
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return res.status(200).json({ success: true });
     }
 
-    return new Response("Method not allowed", { status: 405 });
+    return res.status(405).end();
 
   } catch (error) {
     console.error("Blob Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(500).json({ error: error.message });
   }
 }
