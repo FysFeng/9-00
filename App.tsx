@@ -8,7 +8,6 @@ import { NewsItem, FilterState } from './types';
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
-
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
   const [customBrands, setCustomBrands] = useState<string[]>([]);
@@ -141,7 +140,7 @@ function App() {
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (confirm('确定要删除这条情报吗？(此操作将同步给所有团队成员)')) {
+    if (confirm('确定要删除这条吗？(此操作将同步给所有团队成员)')) {
       const newNewsList = news.filter(item => item.id !== id);
       setNews(newNewsList);
       await saveNewsToCloud(newNewsList);
@@ -230,7 +229,7 @@ function App() {
           {/* Top Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">当前情报数</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">当前新闻数</p>
               <p className="text-2xl font-bold text-slate-800">{stats.count} 条</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500">
@@ -238,7 +237,7 @@ function App() {
               <p className="text-2xl font-bold text-slate-800 truncate">{stats.topBrand}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">最新情报</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">最新新闻</p>
               <p className="text-2xl font-bold text-slate-800 text-sm md:text-xl">{stats.latest}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
@@ -258,7 +257,7 @@ function App() {
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                📅 情报时间线 (Feed)
+                📅 新闻时间线 (Feed)
               </button>
               <button
                 onClick={() => setActiveTab('entry')}
