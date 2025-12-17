@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import NewsCard from './components/NewsCard';
 import EntryForm from './components/EntryForm';
-import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS } from './constants';
+import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS, NEWS_TYPE_LABELS } from './constants';
 import { NewsItem, FilterState } from './types';
 
 function App() {
@@ -151,7 +151,7 @@ function App() {
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (confirm('确定要删除这条情报吗？(此操作将同步给所有团队成员)')) {
+    if (confirm('确定要删除这条吗？(此操作将同步给所有团队成员)')) {
       const newNewsList = news.filter(item => item.id !== id);
       setNews(newNewsList);
       await saveNewsToCloud(newNewsList);
@@ -175,6 +175,45 @@ function App() {
       selectedBrands: prev.selectedBrands.filter(b => b !== brand)
     }));
     await saveBrandsToCloud(newBrandList);
+  };
+
+  const handleExportCSV = () => {
+    if (filteredNews.length === 0) {
+      alert("当前没有可导出的数据");
+      return;
+    }
+
+    // 1. 序号, 2. 公司名, 3. 时间, 4. 新闻类别, 5. 新闻内容
+    const headers = ["序号", "公司名", "时间", "新闻类别", "新闻内容"];
+    const rows = filteredNews.map((item, index) => {
+      // Escape CSV special characters (quotes)
+      const escape = (text: string) => {
+        if (!text) return '""';
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+      
+      const content = `${item.title}\n${item.summary}`;
+
+      return [
+        index + 1,
+        escape(item.brand),
+        escape(item.date),
+        escape(NEWS_TYPE_LABELS[item.type] || item.type),
+        escape(content)
+      ].join(",");
+    });
+
+    // Add BOM for Chinese character support in Excel
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `AutoInsight_Export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const stats = useMemo(() => {
@@ -239,7 +278,7 @@ function App() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">当前情报数</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">当前新闻数</p>
               <p className="text-2xl font-bold text-slate-800">{stats.count} 条</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500">
@@ -247,7 +286,7 @@ function App() {
               <p className="text-2xl font-bold text-slate-800 truncate">{stats.topBrand}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">最新情报</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">最新新闻</p>
               <p className="text-2xl font-bold text-slate-800 text-sm md:text-xl">{stats.latest}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
@@ -256,7 +295,7 @@ function App() {
             </div>
           </div>
 
-          <div className="mb-6 border-b border-slate-200">
+          <div className="mb-6 border-b border-slate-200 flex justify-between items-end">
             <nav className="flex space-x-8">
               <button
                 onClick={() => setActiveTab('feed')}
@@ -266,7 +305,7 @@ function App() {
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                📅 情报时间线 (Feed)
+                📅 新闻时间线 (Feed)
               </button>
               <button
                 onClick={() => setActiveTab('entry')}
@@ -279,6 +318,17 @@ function App() {
                 📝 录入与分析 (Add News)
               </button>
             </nav>
+
+            <button
+               onClick={handleExportCSV}
+               className="mb-3 px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-medium rounded hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-colors flex items-center gap-2 shadow-sm"
+               title="导出当前筛选结果"
+            >
+               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+               </svg>
+               导出 新闻
+            </button>
           </div>
 
           <div className="min-h-[500px]">
