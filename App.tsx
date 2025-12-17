@@ -8,6 +8,7 @@ import { NewsItem, FilterState } from './types';
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -18,22 +19,27 @@ function App() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch News - Add cache: 'no-store' to ensure we don't get a cached API response from the browser
-        const newsRes = await fetch('/api/news', { cache: 'no-store' });
+        // Fetch News - Force bypass browser cache with timestamp and headers
+        const newsRes = await fetch(`/api/news?_t=${Date.now()}`, { 
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
+        
         if (!newsRes.ok) throw new Error("无法连接云端数据库");
         const newsData = await newsRes.json();
-        // 如果云端有数据，使用云端数据；否则使用初始演示数据
         setNews(newsData.length > 0 ? newsData : INITIAL_NEWS);
 
-        // Fetch Brands - Add cache: 'no-store'
-        const brandsRes = await fetch('/api/brands', { cache: 'no-store' });
+        // Fetch Brands - Force bypass cache
+        const brandsRes = await fetch(`/api/brands?_t=${Date.now()}`, { 
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
         const brandsData = await brandsRes.json();
         setCustomBrands(brandsData.length > 0 ? brandsData : DEFAULT_BRANDS);
 
       } catch (error) {
         console.error("Failed to load cloud data:", error);
         setDbError("无法连接 Vercel Blob 云存储，更改可能不会保存。请检查 BLOB_READ_WRITE_TOKEN 配置。");
-        // Fallback to initial data so app doesn't break
         setNews(INITIAL_NEWS);
         setCustomBrands(DEFAULT_BRANDS);
       } finally {
@@ -45,18 +51,17 @@ function App() {
   }, []);
   
   // Default Filter State
-  // 修改：默认不限制开始时间，结束时间默认为今天。这样可以显示所有历史数据，按时间倒序排列。
   const defaultEndDate = new Date().toISOString().split('T')[0];
   
   const [filters, setFilters] = useState<FilterState>({
-    startDate: '', // 默认为空，表示不限制开始时间（查看所有历史）
+    startDate: '', 
     endDate: defaultEndDate,
     selectedBrands: DEFAULT_BRANDS, 
     selectedTypes: NEWS_TYPES_LIST,
     searchQuery: ''
   });
 
-  // Sync selectedBrands in filters when customBrands loads/changes
+  // Sync selectedBrands
   useEffect(() => {
       if (filters.selectedBrands.length === DEFAULT_BRANDS.length && customBrands.length !== DEFAULT_BRANDS.length) {
           setFilters(prev => ({ ...prev, selectedBrands: customBrands }));
@@ -72,7 +77,6 @@ function App() {
   // Filter & Sort Logic
   const filteredNews = useMemo(() => {
     return news.filter(item => {
-      // 日期筛选：如果筛选器为空，则视为不限制
       const startMatch = !filters.startDate || item.date >= filters.startDate;
       const endMatch = !filters.endDate || item.date <= filters.endDate;
       
@@ -86,22 +90,24 @@ function App() {
 
       return startMatch && endMatch && brandMatch && typeMatch && searchMatch;
     })
-    // 强制排序：Latest (Newest) -> Oldest
-    // 使用 localeCompare 对 ISO 日期字符串 (YYYY-MM-DD) 进行排序非常准确且高效
     .sort((a, b) => b.date.localeCompare(a.date));
   }, [news, filters]);
 
   // Cloud Actions
   const saveNewsToCloud = async (updatedNews: NewsItem[]) => {
+    setIsSaving(true);
     try {
-      await fetch('/api/news', {
+      const res = await fetch('/api/news', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedNews)
       });
+      if (!res.ok) throw new Error("Save failed");
     } catch (e) {
       console.error("Cloud save failed", e);
       alert("云端保存失败，请检查网络");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -126,16 +132,12 @@ function App() {
       image: itemData.image || `https://image.pollinations.ai/prompt/${encodeURIComponent(itemData.brand + ' car')}?nologo=true`
     };
     
-    // Optimistic Update (Update UI immediately)
-    // 新增的新闻放在数组最前面，但 filteredNews 会再次根据日期排序确保位置正确
     const newNewsList = [newItem, ...news];
     setNews(newNewsList);
     setActiveTab('feed');
     
-    // Background Cloud Save
     await saveNewsToCloud(newNewsList);
 
-    // Handle new brand logic
     if (!customBrands.includes(itemData.brand)) {
         const newBrandList = [...customBrands, itemData.brand];
         setCustomBrands(newBrandList);
@@ -149,7 +151,7 @@ function App() {
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (confirm('确定要删除这条吗？(此操作将同步给所有团队成员)')) {
+    if (confirm('确定要删除这条情报吗？(此操作将同步给所有团队成员)')) {
       const newNewsList = news.filter(item => item.id !== id);
       setNews(newNewsList);
       await saveNewsToCloud(newNewsList);
@@ -175,7 +177,6 @@ function App() {
     await saveBrandsToCloud(newBrandList);
   };
 
-  // Stats
   const stats = useMemo(() => {
     if (news.length === 0) return { count: 0, topBrand: 'N/A', latest: 'N/A', sources: 0 };
     
@@ -186,7 +187,6 @@ function App() {
     news.forEach(item => {
         brandCounts[item.brand] = (brandCounts[item.brand] || 0) + 1;
         sources.add(item.source);
-        // Find absolute latest date in the entire dataset
         if (!latestDate || item.date > latestDate) latestDate = item.date;
     });
 
@@ -223,11 +223,12 @@ function App() {
       <main className="flex-1 ml-72 h-full overflow-y-auto bg-slate-50">
         <div className="max-w-5xl mx-auto p-8">
           
-          {/* Header Status Bar */}
           <div className="flex justify-between items-center mb-6">
              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                <span className="text-sm font-medium text-slate-600">Vercel Blob 已连接 (团队同步)</span>
+                <div className={`w-2.5 h-2.5 rounded-full ${isSaving ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'} shadow-[0_0_8px_rgba(34,197,94,0.6)]`}></div>
+                <span className="text-sm font-medium text-slate-600">
+                  {isSaving ? "正在同步到云端..." : "Vercel Blob 已连接 (团队同步)"}
+                </span>
              </div>
              {dbError && (
                  <div className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded border border-red-100">
@@ -236,10 +237,9 @@ function App() {
              )}
           </div>
 
-          {/* Top Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">当前新闻数</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">当前情报数</p>
               <p className="text-2xl font-bold text-slate-800">{stats.count} 条</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500">
@@ -247,7 +247,7 @@ function App() {
               <p className="text-2xl font-bold text-slate-800 truncate">{stats.topBrand}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">最新新闻</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">最新情报</p>
               <p className="text-2xl font-bold text-slate-800 text-sm md:text-xl">{stats.latest}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
@@ -256,7 +256,6 @@ function App() {
             </div>
           </div>
 
-          {/* Tab Navigation */}
           <div className="mb-6 border-b border-slate-200">
             <nav className="flex space-x-8">
               <button
@@ -282,7 +281,6 @@ function App() {
             </nav>
           </div>
 
-          {/* Content Area */}
           <div className="min-h-[500px]">
             {activeTab === 'feed' ? (
               <div className="space-y-2">
@@ -295,7 +293,7 @@ function App() {
                     <p className="text-slate-400 text-lg">📭 当前筛选范围内没有数据。</p>
                     <button 
                         onClick={() => setFilters({
-                            startDate: '', // Reset to all time
+                            startDate: '',
                             endDate: defaultEndDate,
                             selectedBrands: customBrands,
                             selectedTypes: NEWS_TYPES_LIST,
