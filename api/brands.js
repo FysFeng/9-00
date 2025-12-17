@@ -1,28 +1,24 @@
 import { put, list } from '@vercel/blob';
 
-export const config = {
-  runtime: 'edge',
-};
+// Remove 'runtime: edge' to use default Node.js runtime
 
-export default async function handler(req) {
+export default async function handler(req, res) {
+  // CORS configuration
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
+    return res.status(200).end();
   }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (!token) {
     if (req.method === 'GET') {
-        return new Response(JSON.stringify([]), { status: 200, headers: {'Content-Type': 'application/json'} });
+        return res.status(200).json([]);
     }
-    return new Response(JSON.stringify({ error: "Vercel Blob token not found" }), { status: 503 });
+    return res.status(503).json({ error: "Vercel Blob token not found" });
   }
 
   try {
@@ -31,23 +27,17 @@ export default async function handler(req) {
       const brandsBlob = blobs.find(b => b.pathname === 'brands.json');
 
       if (!brandsBlob) {
-        return new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return res.status(200).json([]);
       }
 
       const dataRes = await fetch(brandsBlob.url);
       const data = await dataRes.json();
 
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
-      const body = await req.json();
+      const body = req.body;
       
       await put('brands.json', JSON.stringify(body), {
         access: 'public',
@@ -55,18 +45,13 @@ export default async function handler(req) {
         token
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return res.status(200).json({ success: true });
     }
 
-    return new Response("Method not allowed", { status: 405 });
+    return res.status(405).end();
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error("Blob Error:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
