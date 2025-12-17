@@ -8,6 +8,7 @@ import { NewsItem, FilterState } from './types';
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
   const [customBrands, setCustomBrands] = useState<string[]>([]);
@@ -21,6 +22,7 @@ function App() {
         const newsRes = await fetch('/api/news');
         if (!newsRes.ok) throw new Error("无法连接云端数据库");
         const newsData = await newsRes.json();
+        // 如果云端有数据，使用云端数据；否则使用初始演示数据
         setNews(newsData.length > 0 ? newsData : INITIAL_NEWS);
 
         // Fetch Brands
@@ -42,12 +44,12 @@ function App() {
     fetchData();
   }, []);
   
-  // Date calculation for default filter (Last 30 days)
+  // Default Filter State
+  // 修改：默认不限制开始时间，结束时间默认为今天。这样可以显示所有历史数据，按时间倒序排列。
   const defaultEndDate = new Date().toISOString().split('T')[0];
-  const defaultStartDate = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
-
+  
   const [filters, setFilters] = useState<FilterState>({
-    startDate: defaultStartDate,
+    startDate: '', // 默认为空，表示不限制开始时间（查看所有历史）
     endDate: defaultEndDate,
     selectedBrands: DEFAULT_BRANDS, 
     selectedTypes: NEWS_TYPES_LIST,
@@ -67,10 +69,13 @@ function App() {
 
   const [activeTab, setActiveTab] = useState<'feed' | 'entry'>('feed');
 
-  // Filter Logic
+  // Filter & Sort Logic
   const filteredNews = useMemo(() => {
     return news.filter(item => {
-      const dateMatch = item.date >= filters.startDate && item.date <= filters.endDate;
+      // 日期筛选：如果筛选器为空，则视为不限制
+      const startMatch = !filters.startDate || item.date >= filters.startDate;
+      const endMatch = !filters.endDate || item.date <= filters.endDate;
+      
       const brandMatch = filters.selectedBrands.length === 0 || filters.selectedBrands.includes(item.brand);
       const typeMatch = filters.selectedTypes.length === 0 || filters.selectedTypes.includes(item.type);
       
@@ -79,8 +84,11 @@ function App() {
                           item.title.toLowerCase().includes(searchLower) || 
                           item.summary.toLowerCase().includes(searchLower);
 
-      return dateMatch && brandMatch && typeMatch && searchMatch;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return startMatch && endMatch && brandMatch && typeMatch && searchMatch;
+    })
+    // 强制排序：Latest (Newest) -> Oldest
+    // 使用 localeCompare 对 ISO 日期字符串 (YYYY-MM-DD) 进行排序非常准确且高效
+    .sort((a, b) => b.date.localeCompare(a.date));
   }, [news, filters]);
 
   // Cloud Actions
@@ -119,6 +127,7 @@ function App() {
     };
     
     // Optimistic Update (Update UI immediately)
+    // 新增的新闻放在数组最前面，但 filteredNews 会再次根据日期排序确保位置正确
     const newNewsList = [newItem, ...news];
     setNews(newNewsList);
     setActiveTab('feed');
@@ -140,7 +149,7 @@ function App() {
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (confirm('确定要删除这条吗？(此操作将同步给所有团队成员)')) {
+    if (confirm('确定要删除这条情报吗？(此操作将同步给所有团队成员)')) {
       const newNewsList = news.filter(item => item.id !== id);
       setNews(newNewsList);
       await saveNewsToCloud(newNewsList);
@@ -177,6 +186,7 @@ function App() {
     news.forEach(item => {
         brandCounts[item.brand] = (brandCounts[item.brand] || 0) + 1;
         sources.add(item.source);
+        // Find absolute latest date in the entire dataset
         if (!latestDate || item.date > latestDate) latestDate = item.date;
     });
 
@@ -229,7 +239,7 @@ function App() {
           {/* Top Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">当前新闻数</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">当前情报数</p>
               <p className="text-2xl font-bold text-slate-800">{stats.count} 条</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-orange-500">
@@ -237,7 +247,7 @@ function App() {
               <p className="text-2xl font-bold text-slate-800 truncate">{stats.topBrand}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
-              <p className="text-xs text-slate-400 uppercase font-semibold">最新新闻</p>
+              <p className="text-xs text-slate-400 uppercase font-semibold">最新情报</p>
               <p className="text-2xl font-bold text-slate-800 text-sm md:text-xl">{stats.latest}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
@@ -257,7 +267,7 @@ function App() {
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                📅 新闻时间线 (Feed)
+                📅 情报时间线 (Feed)
               </button>
               <button
                 onClick={() => setActiveTab('entry')}
@@ -285,7 +295,7 @@ function App() {
                     <p className="text-slate-400 text-lg">📭 当前筛选范围内没有数据。</p>
                     <button 
                         onClick={() => setFilters({
-                            startDate: defaultStartDate,
+                            startDate: '', // Reset to all time
                             endDate: defaultEndDate,
                             selectedBrands: customBrands,
                             selectedTypes: NEWS_TYPES_LIST,
@@ -293,7 +303,7 @@ function App() {
                         })}
                         className="mt-4 text-red-500 font-medium hover:underline"
                     >
-                        重置筛选
+                        重置并显示所有历史
                     </button>
                   </div>
                 )}
