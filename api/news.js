@@ -1,14 +1,16 @@
 import { put, list } from '@vercel/blob';
 
-// Node.js Runtime
+// Node.js Runtime for Vercel Functions
 export default async function handler(req, res) {
-  // CORS configuration
+  // CORS & Cache Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Cache-Control', 'no-store, max-age=0'); // Prevent API response caching
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Pragma');
+  // Explicitly tell browser/clients NOT to cache this API response
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
-  // Handle preflight request
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -25,7 +27,6 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       // 1. List files to find 'news.json'
-      // list() usually returns fresh metadata, but the 'url' inside points to the CDN
       const { blobs } = await list({ token, limit: 100 }); 
       const newsBlob = blobs.find(b => b.pathname === 'news.json');
 
@@ -34,13 +35,15 @@ export default async function handler(req, res) {
       }
 
       // 2. Fetch the actual JSON content from the blob URL
-      // ⚠️ CRITICAL FIX: Append timestamp to URL to bypass Vercel Edge Network Cache (CDN)
-      // Vercel Blob public URLs are heavily cached.
+      // CRITICAL: Append timestamp to bypass Vercel Edge Cache (CDN)
       const noCacheUrl = `${newsBlob.url}?t=${Date.now()}`;
       
       const dataRes = await fetch(noCacheUrl, { 
           cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' } 
+          headers: { 
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+          } 
       });
 
       if (!dataRes.ok) {
@@ -54,7 +57,6 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       let body = req.body;
       
-      // Robust Parsing: Sometimes req.body might be a string depending on headers
       if (typeof body === 'string') {
         try {
             body = JSON.parse(body);
@@ -63,14 +65,14 @@ export default async function handler(req, res) {
         }
       }
 
-      // Save/Overwrite 'news.json'
-      // addRandomSuffix: false ensures we keep the same filename like a database
+      // Save 'news.json'
+      // cacheControlMaxAge: 0 suggests CDN to not cache the blob itself
       await put('news.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
         token,
-        contentType: 'application/json', // Explicitly set content type
-        cacheControlMaxAge: 0 // Suggest CDN to not cache this, though 'put' options support varies
+        contentType: 'application/json',
+        cacheControlMaxAge: 0
       });
 
       return res.status(200).json({ success: true, timestamp: Date.now() });
