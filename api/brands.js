@@ -1,12 +1,11 @@
 import { put, list } from '@vercel/blob';
 
-// Remove 'runtime: edge' to use default Node.js runtime
-
+// Node.js Runtime
 export default async function handler(req, res) {
-  // CORS configuration
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store, max-age=0'); 
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -23,26 +22,41 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { blobs } = await list({ token });
+      const { blobs } = await list({ token, limit: 100 });
       const brandsBlob = blobs.find(b => b.pathname === 'brands.json');
 
       if (!brandsBlob) {
         return res.status(200).json([]);
       }
 
-      const dataRes = await fetch(brandsBlob.url);
-      const data = await dataRes.json();
+      // ⚠️ CRITICAL FIX: Bypass CDN Cache
+      const noCacheUrl = `${brandsBlob.url}?t=${Date.now()}`;
 
+      const dataRes = await fetch(noCacheUrl, { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' } 
+      });
+      
+      if (!dataRes.ok) {
+        throw new Error(`Failed to fetch blob content: ${dataRes.status}`);
+      }
+
+      const data = await dataRes.json();
       return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
-      const body = req.body;
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: "Invalid JSON" }); }
+      }
       
       await put('brands.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
-        token
+        token,
+        contentType: 'application/json',
+        cacheControlMaxAge: 0
       });
 
       return res.status(200).json({ success: true });
