@@ -58,6 +58,7 @@ export default async function handler(req, res) {
       await put('brands.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
+        addOverwrite: true,
         token,
         contentType: 'application/json',
         cacheControlMaxAge: 0
