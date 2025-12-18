@@ -70,6 +70,7 @@ export default async function handler(req, res) {
       await put('news.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
+        allowOverwrite: true,   // <--- 关键！允许覆盖旧文件
         token,
         contentType: 'application/json',
         cacheControlMaxAge: 0
