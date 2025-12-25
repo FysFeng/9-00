@@ -13,7 +13,9 @@ export const DEFAULT_BRANDS = [
   "GWM 长城",
   "BYD 比亚迪",
   "ICAUR 奇瑞",
-  "GAC 广汽"
+  "GAC 广汽",
+  "政策相关",
+  "Other 其他品牌",
 ];
 
 export const NEWS_TYPES_LIST = [
