@@ -12,6 +12,7 @@ export const DEFAULT_BRANDS = [
   "Geely 吉利",
   "GWM 长城",
   "BYD 比亚迪",
+  "ICAUR 奇瑞",
   "GAC 广汽"
 ];
 
