@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import html2canvas from 'html2canvas';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from 'recharts';
 import { NewsItem, NewsType } from '../types';
 import { NEWS_TYPE_LABELS } from '../constants';
 
@@ -224,16 +224,16 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
                     
                     <div className="grid grid-cols-2 gap-8">
                         {/* Pie Chart */}
-                        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex items-center gap-4">
-                            <div className="h-24 w-24 relative flex-shrink-0">
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                            <div className="h-32 w-full relative">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
                                             data={typeChartData}
                                             cx="50%"
                                             cy="50%"
-                                            innerRadius={20}
-                                            outerRadius={38}
+                                            innerRadius={35}
+                                            outerRadius={55}
                                             paddingAngle={2}
                                             dataKey="value"
                                             isAnimationActive={false}
@@ -246,43 +246,49 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
                                     </PieChart>
                                 </ResponsiveContainer>
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                    <span className="text-xs font-bold text-slate-700">{filteredNews.length}</span>
+                                    <div className="text-center">
+                                        <span className="text-2xl font-bold text-slate-800 leading-none">{filteredNews.length}</span>
+                                        <span className="block text-[10px] text-slate-400 uppercase mt-1">Total</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex-1 space-y-1">
+                             <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2 w-full px-2">
                                 {typeChartData.slice(0, 4).map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between text-[10px]">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
-                                            <span className="text-slate-600">{item.name}</span>
-                                        </div>
-                                        <span className="font-bold text-slate-900">{Math.round((item.value/filteredNews.length)*100)}%</span>
+                                    <div key={idx} className="flex items-center gap-1.5 text-[10px]">
+                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
+                                        <span className="text-slate-500">{item.name}</span>
+                                        <span className="font-bold text-slate-700">{Math.round((item.value/filteredNews.length)*100)}%</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Bar Chart */}
-                        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                        {/* Bar Chart (Vertical with Labels) */}
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col">
                            <div className="flex justify-between items-center mb-2">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase">品牌活跃度 Top 5</span>
                            </div>
-                           <div className="h-20 w-full">
+                           <div className="flex-1 min-h-[140px]">
                                <ResponsiveContainer width="100%" height="100%">
-                                   <BarChart data={brandChartData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
-                                      <XAxis type="number" hide />
-                                      <YAxis 
-                                        type="category" 
+                                   <BarChart data={brandChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                                      <XAxis 
                                         dataKey="name" 
-                                        width={60} 
-                                        tick={{fontSize: 10, fill: '#475569', fontWeight: 500}} 
-                                        axisLine={false}
+                                        tick={{fontSize: 10, fill: '#64748b', fontWeight: 500}} 
+                                        axisLine={{ stroke: '#e2e8f0' }}
                                         tickLine={false}
                                         interval={0}
+                                        tickMargin={8}
                                       />
-                                      <Bar dataKey="value" barSize={10} radius={[0, 4, 4, 0]} isAnimationActive={false}>
+                                      <YAxis hide />
+                                      <Tooltip 
+                                        cursor={{fill: '#f1f5f9'}}
+                                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                        itemStyle={{fontSize: '12px', color: '#1e293b', fontWeight: 'bold'}}
+                                      />
+                                      <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={24} isAnimationActive={false}>
+                                        <LabelList dataKey="value" position="top" fill="#64748b" fontSize={12} fontWeight="bold" offset={5} />
                                         {brandChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill="#3b82f6" />
+                                            <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#3b82f6'} />
                                         ))}
                                       </Bar>
                                    </BarChart>
