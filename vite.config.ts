@@ -7,6 +7,9 @@ export default defineConfig({
     // Increase chunk size limit to suppress warnings
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      // Mark html2canvas as external so Rollup ignores it during build
+      // It will be resolved by the browser via the importmap in index.html
+      external: ['html2canvas'],
       output: {
         // Manually separate large dependencies into a vendor chunk
         manualChunks: {
