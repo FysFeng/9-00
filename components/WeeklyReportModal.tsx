@@ -198,11 +198,11 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
               <div className="bg-[#0f172a] text-white px-8 py-5 flex items-center justify-between border-b-4 border-red-600">
                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center shadow-lg shadow-red-900/50">
-                        <span className="text-lg font-bold">AI</span>
+                        <span className="text-sm font-bold">UAE</span>
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight leading-none">Auto Insight</h1>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Middle East Automotive Intelligence</p>
+                        <h1 className="text-xl font-bold tracking-tight leading-none">UAE Auto Insight</h1>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">UAE News</p>
                     </div>
                  </div>
                  
