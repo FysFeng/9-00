@@ -52,7 +52,7 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
     return Object.entries(newsByType)
       .map(([type, items]) => ({
         name: NEWS_TYPE_LABELS[type as NewsType],
-        value: items!.length,
+        value: (items as NewsItem[]).length,
         color: TYPE_COLORS[type] || '#ccc'
       }))
       .sort((a, b) => b.value - a.value);
