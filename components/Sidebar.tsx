@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
         <h1 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
           Auto Insight
         </h1>
-        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">阿联酋汽车新闻</p>
+        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">中东汽车情报中心</p>
       </div>
 
       <div className="p-6 space-y-8 flex-1">
@@ -188,7 +188,7 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
             )}
 
             <div className="flex flex-wrap gap-2">
-              {availableBrands.slice(0, 15).map(brand => (
+              {availableBrands.map(brand => (
                 <button
                   key={brand}
                   onClick={() => handleBrandChange(brand)}
