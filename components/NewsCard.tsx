@@ -18,7 +18,6 @@ const getTypeColor = (type: NewsType) => {
   }
 };
 
-// 辅助函数：根据情感返回颜色
 const getSentimentColor = (sentiment?: string) => {
   switch (sentiment) {
     case 'positive': return 'bg-green-500';
@@ -111,7 +110,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
 
               {item.url && item.url !== '#' ? (
                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
-                   🔗 跳转原文
+                    🔗 跳转原文
                  </a>
               ) : (
                  <span className="text-slate-300 cursor-not-allowed">无链接</span>
