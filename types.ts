@@ -1,7 +1,4 @@
 {
-type: uploaded file
-fileName: types.ts
-fullContent:
 export enum NewsType {
   LAUNCH = "New Car Launch",
   POLICY = "Policy & Regulation",
