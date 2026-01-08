@@ -1,7 +1,4 @@
 {
-type: uploaded file
-fileName: api/rss.js
-fullContent:
 import Parser from 'rss-parser';
 import * as cheerio from 'cheerio';
 
