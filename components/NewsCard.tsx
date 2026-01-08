@@ -18,6 +18,16 @@ const getTypeColor = (type: NewsType) => {
   }
 };
 
+// 辅助函数：根据情感返回颜色
+const getSentimentColor = (sentiment?: string) => {
+  switch (sentiment) {
+    case 'positive': return 'bg-green-500';
+    case 'negative': return 'bg-red-500';
+    case 'neutral': return 'bg-slate-400';
+    default: return 'bg-slate-200';
+  }
+};
+
 const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -44,6 +54,23 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
           />
         </div>
 
+        {/* 情感指示灯 (Timeline Dot) */}
+      <div className={`absolute left-0 top-6 w-6 h-6 rounded-full border-4 border-white shadow-md z-10 ${getSentimentColor(item.sentiment)}`}></div>
+      
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-lg hover:border-red-100 transition-all duration-300 flex flex-col md:flex-row gap-6">
+        
+        <div className="w-full md:w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 relative group-hover:shadow-md transition-shadow">
+          <img 
+            src={item.image} 
+            alt={item.title} 
+            className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500"
+            onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2'; }}
+          />
+          {item.sentiment && (
+            <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getSentimentColor(item.sentiment)} ring-2 ring-white`} title={`Sentiment: ${item.sentiment}`} />
+          )}
+        </div>
+        
         {/* Text */}
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-2">
@@ -67,6 +94,15 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
           <p className="text-sm text-slate-600 leading-relaxed mb-4 flex-1 line-clamp-3">
             {item.summary}
           </p>
+
+             {/* 新增：标签展示区域 */}
+          {item.tags && item.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {item.tags.map((tag, idx) => (
+                <span key={idx} className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-500">#{tag}</span>
+              ))}
+            </div>
+          )}
           
           {expanded && (
              <div className="mt-2 mb-4 p-3 bg-slate-50 rounded-lg text-sm text-slate-700 border border-slate-100 animate-fadeIn">
