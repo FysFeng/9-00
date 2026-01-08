@@ -1,7 +1,11 @@
 {
+type: uploaded file
+fileName: package.json
+fullContent:
+{
   "name": "uae-auto-insight",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,7 +20,8 @@
     "@vitejs/plugin-react": "^5.1.2",
     "@vercel/blob": "^2.0.0",
     "html2canvas": "^1.4.1",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "cheerio": "^1.0.0-rc.12"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
