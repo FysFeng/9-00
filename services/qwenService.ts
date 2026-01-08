@@ -1,4 +1,4 @@
-import { NewsType } from "../types";
+import { NewsType, SentimentType } from "../types";
 import { DEFAULT_BRANDS } from "../constants";
 
 export interface ExtractedNewsData {
@@ -9,26 +9,44 @@ export interface ExtractedNewsData {
   date: string;
   url: string;
   image_keywords: string;
+  sentiment: SentimentType;
+  tags: string[];
 }
 
-export const analyzeTextWithQwen = async (text: string): Promise<ExtractedNewsData> => {
+// 接收 currentBrands 参数，默认为 DEFAULT_BRANDS
+export const analyzeTextWithQwen = async (text: string, currentBrands: string[] = DEFAULT_BRANDS): Promise<ExtractedNewsData> => {
+  
+  // 确保品牌列表去重并包含默认品牌
+  const brandsToPrompt = Array.from(new Set([...DEFAULT_BRANDS, ...currentBrands]));
+  const brandsString = brandsToPrompt.join(', ');
+
   const systemPrompt = `
-    You are an expert automotive news analyst. Extract structured data into STRICT JSON format.
-    No markdown blocks.
-    Structure:
+    You are an expert automotive news analyst for the UAE market. Extract structured data into STRICT JSON format.
+    
+    Tasks:
+    1. Identify the Brand (Map to list: [${brandsString}] or "Other").
+    2. Summarize the news (2-3 sentences in Chinese).
+    3. Categorize the news Type.
+    4. Analyze Sentiment (positive/neutral/negative).
+    5. Extract 3-5 relevant Tags (e.g., "EV", "Price Cut", "SUV", "Ramadan Offer").
+    6. Extract Image Keywords for generation.
+
+    Output Structure:
     {
       "title": "Chinese headline",
-      "summary": "2-3 sentences Chinese summary",
-      "brand": "Primary brand from: ${DEFAULT_BRANDS.join(', ')} (or Other)",
+      "summary": "Chinese summary",
+      "brand": "Brand Name",
       "type": "One of: ${Object.values(NewsType).join(', ')}",
       "date": "YYYY-MM-DD (default: ${new Date().toISOString().split('T')[0]})",
-      "url": "URL or empty",
-      "image_keywords": "3-6 English keywords"
+      "url": "URL found in text or empty",
+      "image_keywords": "3-6 English keywords",
+      "sentiment": "positive" | "neutral" | "negative",
+      "tags": ["Tag1", "Tag2", "Tag3"]
     }
   `;
 
   try {
-    // ✅ 请求我们自己的 Vercel 后端
+    // 直接请求后端 API
     const response = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,40 +54,24 @@ export const analyzeTextWithQwen = async (text: string): Promise<ExtractedNewsDa
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      
-      // Handle HTML 404/500 responses gracefully (e.g. Vite dev server 404 or Vercel 500 page)
-      if (errText.trim().startsWith('<')) {
-         if (response.status === 404) {
-            throw new Error(`API 路由不存在 (404)。如果您在本地运行，请使用 'vercel dev' 启动以支持后端 API，或配置代理。`);
-         }
-         throw new Error(`请求失败 (${response.status})。可能是后端 API 配置错误或崩溃。`);
-      }
-      
-      // Try to parse JSON error
-      try {
-        const errJson = JSON.parse(errText);
-        // Normalize error message: handle { error: "msg" } and { error: { message: "msg" } }
-        let errorMsg = errJson.error || errJson.message || `API 请求失败: ${response.status}`;
-        if (typeof errorMsg === 'object') {
-            errorMsg = errorMsg.message || JSON.stringify(errorMsg);
+        let errorMsg = `Server Error: ${response.status}`;
+        try {
+            const errData = await response.json();
+            errorMsg = errData.error || errData.message || errorMsg;
+        } catch {
+            const text = await response.text();
+            if (text) errorMsg += ` - ${text.substring(0, 50)}`;
         }
         throw new Error(errorMsg);
-      } catch (e: any) {
-        // If JSON parse fails, throw the original text or the error from above
-        if (e.message && e.message !== 'Unexpected token') throw e; 
-        throw new Error(`请求失败 (${response.status}): ${errText.substring(0, 100)}`);
-      }
     }
-
-    const data = await response.json();
     
-    // Check for DashScope specific error structure in success 200 OK body
-    if (data.code && data.code !== '200' && data.message) {
-        throw new Error(`Qwen API Error: ${data.message}`);
+    const rawData = await response.json();
+
+    if (rawData.code && rawData.code !== '200' && rawData.message) {
+        throw new Error(`Qwen API Error: ${rawData.message}`);
     }
 
-    const rawContent = data.output?.choices?.[0]?.message?.content || "";
+    const rawContent = rawData.output?.choices?.[0]?.message?.content || "";
 
     if (!rawContent) throw new Error("AI 返回了空内容");
 
@@ -81,10 +83,15 @@ export const analyzeTextWithQwen = async (text: string): Promise<ExtractedNewsDa
       cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
     }
 
-    return JSON.parse(cleanJson) as ExtractedNewsData;
+    try {
+        return JSON.parse(cleanJson) as ExtractedNewsData;
+    } catch (e) {
+        console.error("JSON Parse Error", cleanJson);
+        throw new Error("AI 返回格式无法解析，请重试");
+    }
 
-  } catch (error) {
-    console.error("Qwen Service Error:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("Qwen Analysis Failed:", error);
+    throw new Error(error.message || "智能分析服务暂时不可用");
   }
 };
