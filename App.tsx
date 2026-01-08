@@ -4,7 +4,7 @@ import NewsCard from './components/NewsCard';
 import EntryForm from './components/EntryForm';
 import WeeklyReportModal from './components/WeeklyReportModal';
 import BrandAnalysisModal from './components/BrandAnalysisModal';
-import Inbox from './components/Inbox'; // 【关键点 1】必须引入 Inbox 组件
+import Inbox from './components/Inbox'; 
 import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS, NEWS_TYPE_LABELS } from './constants';
 import { NewsItem, FilterState, PendingItem } from './types';
 
@@ -20,7 +20,7 @@ function App() {
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
   const [customBrands, setCustomBrands] = useState<string[]>([]);
-  const [pendingCount, setPendingCount] = useState(0); // 【关键点 2】Inbox 计数状态
+  const [pendingCount, setPendingCount] = useState(0); 
 
   // Inbox -> Entry Transfer State
   const [inboxItemToAnalyze, setInboxItemToAnalyze] = useState<PendingItem | null>(null);
@@ -39,12 +39,17 @@ function App() {
         const brandsData = await brandsRes.json();
         setCustomBrands(brandsData.length > 0 ? brandsData : DEFAULT_BRANDS);
 
-        // 【关键点 3】静默加载 Inbox 数量
-        fetch(`/api/pending?_t=${Date.now()}`).then(r => r.json()).then(d => setPendingCount(d.length)).catch(e => console.log(e));
+        // 加载 Inbox 数量 (忽略 404，防止阻塞 UI)
+        try {
+            const pendingRes = await fetch(`/api/pending?_t=${Date.now()}`);
+            if (pendingRes.ok) {
+                const d = await pendingRes.json();
+                setPendingCount(d.length);
+            }
+        } catch (e) { console.log("Pending API not ready yet"); }
 
       } catch (error) {
         console.error("Cloud data error:", error);
-        setDbError("离线模式");
         setNews(INITIAL_NEWS);
         setCustomBrands(DEFAULT_BRANDS);
       } finally {
@@ -62,17 +67,14 @@ function App() {
     searchQuery: ''
   });
 
-  // Sync selectedBrands
   useEffect(() => {
       if (filters.selectedBrands.length === DEFAULT_BRANDS.length && customBrands.length !== DEFAULT_BRANDS.length) {
           setFilters(prev => ({ ...prev, selectedBrands: customBrands }));
       }
   }, [customBrands]);
 
-  // 【关键点 4】Tab 状态增加 'inbox'
   const [activeTab, setActiveTab] = useState<'feed' | 'entry' | 'inbox'>('feed');
 
-  // Filter Logic
   const filteredNews = useMemo(() => {
     return news.filter(item => {
       const startMatch = !filters.startDate || item.date >= filters.startDate;
@@ -126,16 +128,15 @@ function App() {
     }
   };
 
-  // 【关键点 5】Inbox 到 Entry 的跳转逻辑
   const handleAnalyzeFromInbox = (item: PendingItem) => {
     setInboxItemToAnalyze(item);
     setActiveTab('entry');
   };
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center text-slate-500">Loading Auto Insight...</div>;
+  if (isLoading) return <div className="h-screen flex items-center justify-center text-slate-500 font-sans">Loading Auto Insight...</div>;
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans text-slate-900">
+    <div className="flex h-screen overflow-hidden font-sans text-slate-900 bg-slate-50">
       <Sidebar 
         filters={filters} 
         setFilters={setFilters} 
@@ -154,7 +155,7 @@ function App() {
         onOpenBrandAnalysis={(b) => setAnalyzingBrand(b)}
       />
       
-      <main className="flex-1 ml-72 h-full overflow-y-auto bg-slate-50 relative">
+      <main className="flex-1 ml-72 h-full overflow-y-auto relative">
         <div className="max-w-5xl mx-auto p-8 pb-32">
           
           <div className="flex justify-between items-center mb-8">
@@ -169,7 +170,6 @@ function App() {
              </button>
           </div>
 
-          {/* 【关键点 6】标签页导航：这里必须要有 Inbox 按钮 */}
           <div className="mb-6 flex space-x-8 border-b border-slate-200">
               <button onClick={() => setActiveTab('feed')} className={`pb-4 text-sm font-bold transition-colors ${activeTab === 'feed' ? 'text-red-600 border-b-2 border-red-600' : 'text-slate-400 hover:text-slate-600'}`}>Live Feed</button>
               
@@ -192,7 +192,6 @@ function App() {
               </div>
             )}
 
-            {/* 【关键点 7】Inbox 组件渲染区 */}
             {activeTab === 'inbox' && (
                 <Inbox 
                     onAnalyze={handleAnalyzeFromInbox} 
@@ -211,8 +210,6 @@ function App() {
             )}
           </div>
         </div>
-
-        <ChatAssistant allNews={news} />
       </main>
 
       <WeeklyReportModal 
@@ -229,7 +226,6 @@ function App() {
             allNews={news}
         />
       )}
-
     </div>
   );
 }
