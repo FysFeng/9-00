@@ -1,4 +1,3 @@
-{
 export enum NewsType {
   LAUNCH = "New Car Launch",
   POLICY = "Policy & Regulation",
@@ -42,5 +41,4 @@ export interface FilterState {
   selectedBrands: string[];
   selectedTypes: NewsType[];
   searchQuery: string;
-}
 }
