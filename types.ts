@@ -17,6 +17,8 @@ export interface NewsItem {
   source: string;
   image: string;
   url: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+tags?: string[];
 }
 
 export interface FilterState {
