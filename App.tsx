@@ -3,6 +3,9 @@ import Sidebar from './components/Sidebar';
 import NewsCard from './components/NewsCard';
 import EntryForm from './components/EntryForm';
 import WeeklyReportModal from './components/WeeklyReportModal';
+// 引入新组件
+import BrandAnalysisModal from './components/BrandAnalysisModal';
+
 import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS, NEWS_TYPE_LABELS } from './constants';
 import { NewsItem, FilterState } from './types';
 
@@ -10,7 +13,10 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Modals State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [analyzingBrand, setAnalyzingBrand] = useState<string | null>(null); // 新增：当前正在分析的品牌
 
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -88,7 +94,8 @@ function App() {
       const searchLower = filters.searchQuery.toLowerCase();
       const searchMatch = !filters.searchQuery || 
                           item.title.toLowerCase().includes(searchLower) || 
-                          item.summary.toLowerCase().includes(searchLower);
+                          item.summary.toLowerCase().includes(searchLower) ||
+                          (item.tags && item.tags.some(t => t.toLowerCase().includes(searchLower)));
 
       return startMatch && endMatch && brandMatch && typeMatch && searchMatch;
     })
@@ -259,9 +266,11 @@ function App() {
         availableBrands={customBrands}
         onAddBrand={handleAddBrand}
         onRemoveBrand={handleRemoveBrand}
+        // 关键：传入打开分析模态框的函数
+        onOpenBrandAnalysis={(b) => setAnalyzingBrand(b)}
       />
       
-      <main className="flex-1 ml-72 h-full overflow-y-auto bg-slate-50">
+      <main className="flex-1 ml-72 h-full overflow-y-auto bg-slate-50 relative">
         <div className="max-w-5xl mx-auto p-8">
           
           <div className="flex justify-between items-center mb-6">
@@ -278,6 +287,7 @@ function App() {
              )}
           </div>
 
+          {/* 统计卡片区域 (Dashboard Stats) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
               <p className="text-xs text-slate-400 uppercase font-semibold">当前新闻数</p>
@@ -383,6 +393,16 @@ function App() {
         onClose={() => setIsReportModalOpen(false)} 
         allNews={news} 
       />
+      
+      {/* 关键：品牌分析模态框 */}
+      {analyzingBrand && (
+        <BrandAnalysisModal 
+            isOpen={!!analyzingBrand}
+            onClose={() => setAnalyzingBrand(null)}
+            brand={analyzingBrand}
+            allNews={news}
+        />
+      )}
     </div>
   );
 }
