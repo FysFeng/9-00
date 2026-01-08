@@ -1,8 +1,4 @@
 {
-type: uploaded file
-fileName: package.json
-fullContent:
-{
   "name": "uae-auto-insight",
   "private": true,
   "version": "0.2.0",
