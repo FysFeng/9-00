@@ -1,7 +1,4 @@
 {
-type: uploaded file
-fileName: components/Inbox.tsx
-fullContent:
 import React, { useState, useEffect } from 'react';
 import { PendingItem } from '../types';
 
