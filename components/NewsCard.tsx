@@ -37,13 +37,13 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
       <div className="absolute left-[11px] top-4 bottom-0 w-0.5 bg-gray-200 group-last:bottom-auto group-last:h-full"></div>
       
       {/* Timeline Dot */}
-      <div className="absolute left-0 top-6 w-6 h-6 rounded-full border-4 border-white bg-red-500 shadow-md z-10"></div>
+      <div className={`absolute left-0 top-6 w-6 h-6 rounded-full border-4 border-white shadow-md z-10 ${getSentimentColor(item.sentiment)}`}></div>
       
       {/* Card Content */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-lg hover:border-red-100 transition-all duration-300 flex flex-col md:flex-row gap-6">
         
         {/* Image */}
-        <div className="w-full md:w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+        <div className="w-full md:w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 relative group-hover:shadow-md transition-shadow">
           <img 
             src={item.image} 
             alt={item.title} 
@@ -52,26 +52,12 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
               (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2';
             }}
           />
-        </div>
-
-        {/* 情感指示灯 (Timeline Dot) */}
-      <div className={`absolute left-0 top-6 w-6 h-6 rounded-full border-4 border-white shadow-md z-10 ${getSentimentColor(item.sentiment)}`}></div>
-      
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-lg hover:border-red-100 transition-all duration-300 flex flex-col md:flex-row gap-6">
-        
-        <div className="w-full md:w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 relative group-hover:shadow-md transition-shadow">
-          <img 
-            src={item.image} 
-            alt={item.title} 
-            className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500"
-            onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2'; }}
-          />
           {item.sentiment && (
-            <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getSentimentColor(item.sentiment)} ring-2 ring-white`} title={`Sentiment: ${item.sentiment}`} />
+             <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${getSentimentColor(item.sentiment)} ring-2 ring-white`} title={`Sentiment: ${item.sentiment}`} />
           )}
         </div>
         
-        {/* Text */}
+        {/* Text Content */}
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -95,7 +81,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
             {item.summary}
           </p>
 
-             {/* 新增：标签展示区域 */}
+          {/* Tags */}
           {item.tags && item.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {item.tags.map((tag, idx) => (
