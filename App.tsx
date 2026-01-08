@@ -4,7 +4,6 @@ import NewsCard from './components/NewsCard';
 import EntryForm from './components/EntryForm';
 import WeeklyReportModal from './components/WeeklyReportModal';
 import BrandAnalysisModal from './components/BrandAnalysisModal';
-import ChatAssistant from './components/ChatAssistant';
 import Inbox from './components/Inbox'; // 【关键点 1】必须引入 Inbox 组件
 import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS, NEWS_TYPE_LABELS } from './constants';
 import { NewsItem, FilterState, PendingItem } from './types';
