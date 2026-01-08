@@ -27,15 +27,16 @@ export interface NewsItem {
   tags?: string[];
 }
 
-// [Feature A] 新增：待处理情报结构
+// [Feature A Updated] 增加 imageUrl 字段
 export interface PendingItem {
-  id: string;        // 通常是 URL 的 Hash 或随机 ID
+  id: string;
   title: string;
   link: string;
-  pubDate: string;   // 原始发布时间
-  sourceName: string; // 如 "Gulf News"
-  snippet: string;   // 原始内容摘要（未清洗）
-  status: 'pending' | 'analyzed' | 'dismissed'; // 状态管理
+  pubDate: string;
+  sourceName: string;
+  snippet: string;
+  imageUrl?: string; // 提取到的封面图链接
+  status: 'pending' | 'analyzed' | 'dismissed';
 }
 
 export interface FilterState {
