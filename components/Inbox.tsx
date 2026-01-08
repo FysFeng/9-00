@@ -145,4 +145,3 @@ const Inbox: React.FC<InboxProps> = ({ onAnalyze, setPendingCount }) => {
 };
 
 export default Inbox;
-}
