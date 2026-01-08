@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import React, { useState, useMemo } from 'react';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { FilterState, NewsType, NewsItem } from '../types';
 import { DEFAULT_BRANDS, NEWS_TYPES_LIST, NEWS_TYPE_LABELS } from '../constants';
 
@@ -10,14 +10,16 @@ interface SidebarProps {
   availableBrands: string[];
   onAddBrand: (brand: string) => void;
   onRemoveBrand: (brand: string) => void;
+  onOpenBrandAnalysis: (brand: string) => void; // 新增：用于触发品牌分析弹窗
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availableBrands, onAddBrand, onRemoveBrand }) => {
+const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availableBrands, onAddBrand, onRemoveBrand, onOpenBrandAnalysis }) => {
   const [newBrandInput, setNewBrandInput] = useState("");
   const [isBrandMgmtOpen, setIsBrandMgmtOpen] = useState(false);
+  const [chartMode, setChartMode] = useState<'volume' | 'sentiment'>('volume'); // 新增：图表模式状态
 
-  // Prepare chart data: Count of news by Brand (Top 5)
-  const chartData = React.useMemo(() => {
+  // 1. 声量数据 (原有逻辑)
+  const volumeData = useMemo(() => {
     const counts: Record<string, number> = {};
     allNews.forEach(item => {
       counts[item.brand] = (counts[item.brand] || 0) + 1;
@@ -26,6 +28,21 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
+  }, [allNews]);
+
+  // 2. 情感数据 (新增逻辑)
+  const sentimentData = useMemo(() => {
+    const counts = { positive: 0, neutral: 0, negative: 0 };
+    allNews.forEach(item => {
+      if (item.sentiment === 'positive') counts.positive++;
+      else if (item.sentiment === 'negative') counts.negative++;
+      else counts.neutral++;
+    });
+    return [
+        { name: '正面', value: counts.positive, color: '#22c55e' },
+        { name: '中性', value: counts.neutral, color: '#94a3b8' },
+        { name: '负面', value: counts.negative, color: '#ef4444' },
+    ].filter(d => d.value > 0);
   }, [allNews]);
 
   const handleBrandChange = (brand: string) => {
@@ -69,26 +86,45 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
       </div>
 
       <div className="p-6 space-y-8 flex-1">
-        {/* Trend Chart */}
+        {/* Trend Chart Area */}
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-            📈 趋势时间线
-          </h3>
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              📈 趋势概览
+            </h3>
+            {/* 新增：图表切换按钮 */}
+            <button 
+              onClick={() => setChartMode(prev => prev === 'volume' ? 'sentiment' : 'volume')} 
+              className="text-[10px] text-red-400 hover:text-white transition-colors"
+            >
+               切换: {chartMode === 'volume' ? '声量' : '情感'}
+            </button>
+          </div>
+          
           <div className="h-32 w-full bg-slate-800/50 rounded-lg p-2 border border-slate-700/50">
-            {chartData.length > 0 ? (
+            {allNews.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" hide />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill="#ef4444" />
-                    ))}
-                  </Bar>
-                </BarChart>
+                {chartMode === 'volume' ? (
+                  <BarChart data={volumeData}>
+                    <XAxis dataKey="name" hide />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
+                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {volumeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill="#ef4444" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <PieChart>
+                    <Pie data={sentimentData} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={5} dataKey="value">
+                        {sentimentData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} />
+                  </PieChart>
+                )}
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
@@ -139,10 +175,10 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
 
           <div className="h-px bg-slate-700 my-4" />
 
-          {/* Brands */}
+          {/* Brands - Modified UI to include Analysis Button */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-300">品牌</label>
+              <label className="text-sm font-medium text-slate-300">品牌 (🔍 AI 分析)</label>
               <button 
                 onClick={() => setIsBrandMgmtOpen(!isBrandMgmtOpen)}
                 className="text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -188,19 +224,43 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
             )}
 
             <div className="flex flex-wrap gap-2">
-              {availableBrands.map(brand => (
-                <button
-                  key={brand}
-                  onClick={() => handleBrandChange(brand)}
-                  className={`px-2 py-1 text-xs rounded border transition-colors ${
-                    filters.selectedBrands.includes(brand)
-                      ? 'bg-red-500/20 border-red-500 text-red-400'
-                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
-                  }`}
-                >
-                  {brand}
-                </button>
-              ))}
+              {availableBrands.map(brand => {
+                const isSelected = filters.selectedBrands.includes(brand);
+                return (
+                  <div key={brand} className={`inline-flex items-center rounded border transition-colors ${
+                      isSelected
+                        ? 'bg-red-500/10 border-red-500'
+                        : 'bg-slate-800 border-slate-700 hover:border-slate-500'
+                    }`}>
+                      {/* Filter Button */}
+                      <button
+                        onClick={() => handleBrandChange(brand)}
+                        className={`px-2 py-1 text-xs rounded-l ${
+                          isSelected ? 'text-red-400' : 'text-slate-400'
+                        }`}
+                      >
+                        {brand}
+                      </button>
+                      
+                      {/* Divider */}
+                      <div className={`w-px h-3 ${isSelected ? 'bg-red-500/30' : 'bg-slate-600'}`}></div>
+
+                      {/* Analysis Button */}
+                      <button
+                        onClick={(e) => {
+                           e.stopPropagation();
+                           onOpenBrandAnalysis(brand);
+                        }}
+                        className={`px-1.5 py-1 text-[10px] hover:bg-slate-700/50 rounded-r ${
+                             isSelected ? 'text-red-400' : 'text-slate-500 hover:text-white'
+                        }`}
+                        title={`AI 分析: ${brand}`}
+                      >
+                        🔍
+                      </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
