@@ -57,13 +57,13 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
   }, [hoveredLoc, news]);
 
   const locations: Record<string, { x: number; y: number; label: string; cnName: string }> = {
-    'Abu Dhabi': { x: 30, y: 78, label: 'ABU DHABI', cnName: '阿布扎比' },
-    'Dubai': { x: 78, y: 38, label: 'DUBAI', cnName: '迪拜' },
-    'Sharjah': { x: 84, y: 32, label: 'SHJ', cnName: '沙迦' },
-    'Ajman': { x: 88, y: 28, label: 'AJM', cnName: '阿治曼' },
-    'Umm Al Quwain': { x: 92, y: 24, label: 'UAQ', cnName: '乌姆盖万' },
-    'Ras Al Khaimah': { x: 96, y: 16, label: 'RAK', cnName: '哈伊马角' },
-    'Fujairah': { x: 105, y: 40, label: 'FUJ', cnName: '富查伊拉' },
+    'Abu Dhabi': { x: 30, y: 78, label: 'ABU DHABI', },
+    'Dubai': { x: 78, y: 38, label: 'DUBAI' },
+    'Sharjah': { x: 84, y: 32, label: 'SHJ'},
+    'Ajman': { x: 88, y: 28, label: 'AJM'},
+    'Umm Al Quwain': { x: 92, y: 24, label: 'UAQ'},
+    'Ras Al Khaimah': { x: 96, y: 16, label: 'RAK'},
+    'Fujairah': { x: 105, y: 40, label: 'FUJ' },
   };
 
   const getVisuals = (loc: string) => {
@@ -226,8 +226,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
       {/* 1. Top Bar: Title & Time Controls */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
-             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场情报驾驶舱</h1>
-             <p className="text-xs text-slate-500 mt-1">实时数据监控与竞品分析中心</p>
+             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场观察</h1>
+             <p className="text-xs text-slate-500 mt-1">实时数据观测与竞品分析</p>
          </div>
          <div className="flex bg-slate-100 p-1 rounded-lg">
              {(['7D', '30D', 'YTD', 'ALL'] as const).map(t => (
@@ -373,7 +373,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               {/* KPI Group - Vertical Stack */}
               <div className="grid grid-cols-1 gap-4">
                   <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col justify-center h-28 relative overflow-hidden group">
-                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计情报总量</div>
+                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计信息总量</div>
                       <div className="text-4xl font-extrabold text-slate-800 mt-1 z-10">{kpis.total}</div>
                       <div className="text-xs text-emerald-500 mt-1 font-medium z-10 flex items-center gap-1">
                           <span className="bg-emerald-100 px-1 rounded">实时</span> 自动同步中
@@ -387,7 +387,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                           {kpis.topBrand[0]}
                       </div>
                       <div className="text-xs text-slate-400 mt-1 font-medium z-10">
-                          {kpis.topBrand[1]} 条情报信号
+                          {kpis.topBrand[1]} 条新闻信号
                       </div>
                       <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-50 rounded-full opacity-50 z-0"></div>
                   </div>
