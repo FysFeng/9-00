@@ -1,51 +1,50 @@
-import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-import { FilterState, NewsType, NewsItem } from '../types';
-import { DEFAULT_BRANDS, NEWS_TYPES_LIST, NEWS_TYPE_LABELS } from '../constants';
+import React, { useState } from 'react';
+import { FilterState, NewsType } from '../types';
+import { NEWS_TYPES_LIST, NEWS_TYPE_LABELS } from '../constants';
 
 interface SidebarProps {
+  currentView: 'dashboard' | 'feed' | 'workbench';
+  onChangeView: (view: 'dashboard' | 'feed' | 'workbench') => void;
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
-  allNews: NewsItem[];
   availableBrands: string[];
-  onAddBrand: (brand: string) => void;
-  onRemoveBrand: (brand: string) => void;
-  onOpenBrandAnalysis: (brand: string) => void; // 新增：用于触发品牌分析弹窗
+  onUpdateBrands: (brands: string[]) => void; // Added for brand management
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availableBrands, onAddBrand, onRemoveBrand, onOpenBrandAnalysis }) => {
-  const [newBrandInput, setNewBrandInput] = useState("");
-  const [isBrandMgmtOpen, setIsBrandMgmtOpen] = useState(false);
-  const [chartMode, setChartMode] = useState<'volume' | 'sentiment'>('volume'); // 新增：图表模式状态
+const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, 
+  onChangeView, 
+  filters, 
+  setFilters, 
+  availableBrands,
+  onUpdateBrands
+}) => {
+  const [isEditingBrands, setIsEditingBrands] = useState(false);
+  
+  // Navigation Item
+  const NavItem = ({ view, icon, label }: { view: 'dashboard' | 'feed' | 'workbench', icon: string, label: string }) => (
+    <button
+      onClick={() => onChangeView(view)}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+        currentView === view 
+          ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/40 font-bold' 
+          : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+      }`}
+    >
+      <span className={`text-xl transition-transform group-hover:scale-110 ${currentView === view ? 'scale-110' : ''}`}>{icon}</span>
+      <span className="text-sm tracking-wide">{label}</span>
+    </button>
+  );
 
-  // 1. 声量数据 (原有逻辑)
-  const volumeData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    allNews.forEach(item => {
-      counts[item.brand] = (counts[item.brand] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [allNews]);
+  // --- Brand Logic ---
+  const isAllBrands = filters.selectedBrands.length === 0;
 
-  // 2. 情感数据 (新增逻辑)
-  const sentimentData = useMemo(() => {
-    const counts = { positive: 0, neutral: 0, negative: 0 };
-    allNews.forEach(item => {
-      if (item.sentiment === 'positive') counts.positive++;
-      else if (item.sentiment === 'negative') counts.negative++;
-      else counts.neutral++;
-    });
-    return [
-        { name: '正面', value: counts.positive, color: '#22c55e' },
-        { name: '中性', value: counts.neutral, color: '#94a3b8' },
-        { name: '负面', value: counts.negative, color: '#ef4444' },
-    ].filter(d => d.value > 0);
-  }, [allNews]);
+  const handleBrandAll = () => {
+    setFilters(prev => ({ ...prev, selectedBrands: [] }));
+  };
 
-  const handleBrandChange = (brand: string) => {
+  const handleBrandToggle = (brand: string) => {
+    if (isEditingBrands) return; // Prevent filtering while editing
     setFilters(prev => {
       const exists = prev.selectedBrands.includes(brand);
       return {
@@ -57,9 +56,38 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
     });
   };
 
-  const handleTypeChange = (type: NewsType) => {
+  const handleAddBrand = () => {
+      const newBrand = prompt("请输入新品牌名称 (e.g. Audi):");
+      if (newBrand && !availableBrands.includes(newBrand)) {
+          onUpdateBrands([...availableBrands, newBrand]);
+      }
+  };
+
+  const handleDeleteBrand = (brandToDelete: string) => {
+      if (confirm(`确定要删除品牌 "${brandToDelete}" 吗?`)) {
+          const newList = availableBrands.filter(b => b !== brandToDelete);
+          onUpdateBrands(newList);
+          // Also remove from filters if selected
+          setFilters(prev => ({
+              ...prev,
+              selectedBrands: prev.selectedBrands.filter(b => b !== brandToDelete)
+          }));
+      }
+  };
+
+  // --- Type Logic ---
+  const isAllTypes = filters.selectedTypes.length === 0 || filters.selectedTypes.length === NEWS_TYPES_LIST.length;
+
+  const handleTypeAll = () => {
+    setFilters(prev => ({ ...prev, selectedTypes: NEWS_TYPES_LIST }));
+  };
+
+  const handleTypeToggle = (type: NewsType) => {
     setFilters(prev => {
       const exists = prev.selectedTypes.includes(type);
+      if (exists && prev.selectedTypes.length === 1) {
+         return { ...prev, selectedTypes: prev.selectedTypes.filter(t => t !== type) };
+      }
       return {
         ...prev,
         selectedTypes: exists
@@ -69,236 +97,156 @@ const Sidebar: React.FC<SidebarProps> = ({ filters, setFilters, allNews, availab
     });
   };
 
-  const handleAddBrandClick = () => {
-    if (newBrandInput && !availableBrands.includes(newBrandInput)) {
-      onAddBrand(newBrandInput);
-      setNewBrandInput("");
-    }
+  const getTypeColor = (type: NewsType, isSelected: boolean) => {
+      if (!isSelected) return 'bg-slate-800/40 text-slate-500 border-slate-700/50 hover:border-slate-600 opacity-60';
+      switch(type) {
+          case NewsType.LAUNCH: return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
+          case NewsType.POLICY: return 'bg-red-500/20 text-red-400 border-red-500/50';
+          case NewsType.SALES: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50';
+          default: return 'bg-slate-100/10 text-white border-slate-400/50';
+      }
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-72 bg-slate-900 text-slate-100 flex flex-col shadow-xl z-20 overflow-y-auto">
-      <div className="p-6 border-b border-slate-700">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
-          Auto Insight
-        </h1>
-        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">中东汽车情报中心</p>
+    <aside className="fixed left-0 top-0 h-full w-64 bg-[#0b1120] text-slate-100 flex flex-col z-50 shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+      {/* 1. Logo Area */}
+      <div className="p-6 pb-2">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-red-900/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-white leading-none">
+                Auto Insight
+            </h1>
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">UAE Intelligence</p>
+          </div>
+        </div>
       </div>
 
-      <div className="p-6 space-y-8 flex-1">
-        {/* Trend Chart Area */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-              📈 趋势概览
-            </h3>
-            {/* 新增：图表切换按钮 */}
-            <button 
-              onClick={() => setChartMode(prev => prev === 'volume' ? 'sentiment' : 'volume')} 
-              className="text-[10px] text-red-400 hover:text-white transition-colors"
-            >
-               切换: {chartMode === 'volume' ? '声量' : '情感'}
-            </button>
+      {/* 2. Main Navigation */}
+      <div className="px-4 py-6 space-y-2 border-b border-slate-800/50">
+        <NavItem view="dashboard" icon="📊" label="汇总舱 Dashboard" />
+        <NavItem view="feed" icon="⚡" label="新闻流 Feed" />
+      </div>
+
+      {/* 3. Command Center (Filters) */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar space-y-8">
+        
+        {/* Type Matrix */}
+        <div>
+           <div className="flex items-center gap-2 mb-3 px-1 justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Layers</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                {/* ALL BUTTON */}
+                <button
+                    onClick={handleTypeAll}
+                    className={`px-2 py-2 rounded-lg border text-[10px] font-bold transition-all duration-200 flex items-center justify-center text-center ${
+                       isAllTypes 
+                       ? 'bg-slate-100 text-slate-900 border-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                       : 'bg-slate-800/40 text-slate-500 border-slate-700/50 hover:border-slate-600'
+                    }`}
+                >
+                    ALL
+                </button>
+
+                {NEWS_TYPES_LIST.map(type => {
+                    const isSelected = filters.selectedTypes.includes(type);
+                    return (
+                        <button
+                            key={type}
+                            onClick={() => handleTypeToggle(type)}
+                            className={`px-2 py-2 rounded-lg border text-[10px] font-medium transition-all duration-200 flex items-center justify-center text-center ${getTypeColor(type, isSelected)}`}
+                        >
+                            {NEWS_TYPE_LABELS[type]}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+
+        {/* Brand Matrix (With Management) */}
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3 px-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Targets</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-slate-600">
+                        {isEditingBrands ? 'Editing...' : `${isAllBrands ? 'All' : filters.selectedBrands.length} Selected`}
+                    </span>
+                    <button 
+                        onClick={() => setIsEditingBrands(!isEditingBrands)}
+                        className={`text-xs p-1 rounded hover:bg-slate-800 transition-colors ${isEditingBrands ? 'text-red-500 bg-red-500/10' : 'text-slate-500'}`}
+                        title="Manage Brands"
+                    >
+                        ⚙️
+                    </button>
+                </div>
           </div>
-          
-          <div className="h-32 w-full bg-slate-800/50 rounded-lg p-2 border border-slate-700/50">
-            {allNews.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                {chartMode === 'volume' ? (
-                  <BarChart data={volumeData}>
-                    <XAxis dataKey="name" hide />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
-                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                    />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {volumeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill="#ef4444" />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                ) : (
-                  <PieChart>
-                    <Pie data={sentimentData} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={5} dataKey="value">
-                        {sentimentData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }} />
-                  </PieChart>
-                )}
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                暂无数据
-              </div>
+          <div className="flex flex-wrap gap-1.5">
+            {/* ALL BUTTON (Hidden in edit mode) */}
+            {!isEditingBrands && (
+                <button
+                    onClick={handleBrandAll}
+                    className={`px-3 py-1 text-[10px] rounded-md border transition-all font-bold ${
+                        isAllBrands
+                        ? 'bg-slate-100 text-slate-900 border-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                        : 'bg-slate-800/30 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                    }`}
+                >
+                    ALL
+                </button>
+            )}
+
+            {availableBrands.map(brand => {
+              const isSelected = filters.selectedBrands.includes(brand);
+              return (
+                <button
+                  key={brand}
+                  onClick={() => isEditingBrands ? handleDeleteBrand(brand) : handleBrandToggle(brand)}
+                  className={`px-2 py-1 text-[10px] rounded-md border transition-all flex items-center gap-1 ${
+                    isEditingBrands 
+                        ? 'bg-slate-800 border-red-900/50 text-slate-400 hover:border-red-500 hover:text-red-400 cursor-pointer'
+                        : isSelected
+                            ? 'bg-red-600 text-white border-red-500 font-bold shadow-md'
+                            : 'bg-slate-800/30 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {brand}
+                  {isEditingBrands && <span className="text-[8px] opacity-50 ml-1">✕</span>}
+                </button>
+              );
+            })}
+
+            {/* Add Button (Only in edit mode) */}
+            {isEditingBrands && (
+                <button
+                    onClick={handleAddBrand}
+                    className="px-2 py-1 text-[10px] rounded-md border border-dashed border-slate-600 text-slate-500 hover:text-white hover:border-slate-400 hover:bg-slate-800 transition-all"
+                >
+                    + Add
+                </button>
             )}
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="space-y-4">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
-            🛠️ 筛选与配置
-          </h3>
-          
-          {/* Search */}
-          <div className="space-y-2">
-             <label className="text-sm font-medium text-slate-300">全文搜索</label>
-             <input
-               type="text"
-               placeholder="输入关键词..."
-               className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-200 placeholder-slate-500"
-               value={filters.searchQuery}
-               onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-             />
-          </div>
-
-          <div className="h-px bg-slate-700 my-4" />
-
-          {/* Date Range */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">时间范围</label>
-            <div className="flex flex-col gap-2">
-              <input 
-                type="date" 
-                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-200"
-                value={filters.startDate}
-                onChange={(e) => setFilters(prev => ({...prev, startDate: e.target.value}))}
-              />
-              <input 
-                type="date" 
-                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 text-slate-200"
-                value={filters.endDate}
-                onChange={(e) => setFilters(prev => ({...prev, endDate: e.target.value}))}
-              />
-            </div>
-          </div>
-
-          <div className="h-px bg-slate-700 my-4" />
-
-          {/* Brands - Modified UI to include Analysis Button */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-300">品牌 (🔍 AI 分析)</label>
-              <button 
-                onClick={() => setIsBrandMgmtOpen(!isBrandMgmtOpen)}
-                className="text-xs text-red-400 hover:text-red-300 transition-colors"
-              >
-                {isBrandMgmtOpen ? "关闭管理" : "管理"}
-              </button>
-            </div>
-
-            {isBrandMgmtOpen && (
-              <div className="bg-slate-800 p-3 rounded-lg border border-slate-700 mb-2 space-y-3">
-                <div className="flex gap-2">
-                  <input 
-                    className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                    placeholder="例如: Ford"
-                    value={newBrandInput}
-                    onChange={(e) => setNewBrandInput(e.target.value)}
-                  />
-                  <button 
-                    onClick={handleAddBrandClick}
-                    className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs"
-                  >
-                    添加
-                  </button>
-                </div>
-                <div>
-                   <label className="text-[10px] text-slate-500 block mb-1">删除品牌</label>
-                   <select 
-                     className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                     onChange={(e) => {
-                       if (e.target.value) {
-                         if (confirm(`确定删除 ${e.target.value} 吗？`)) {
-                           onRemoveBrand(e.target.value);
-                         }
-                         e.target.value = "";
-                       }
-                     }}
-                   >
-                     <option value="">选择要删除的品牌...</option>
-                     {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                   </select>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              {availableBrands.map(brand => {
-                const isSelected = filters.selectedBrands.includes(brand);
-                return (
-                  <div key={brand} className={`inline-flex items-center rounded border transition-colors ${
-                      isSelected
-                        ? 'bg-red-500/10 border-red-500'
-                        : 'bg-slate-800 border-slate-700 hover:border-slate-500'
-                    }`}>
-                      {/* Filter Button */}
-                      <button
-                        onClick={() => handleBrandChange(brand)}
-                        className={`px-2 py-1 text-xs rounded-l ${
-                          isSelected ? 'text-red-400' : 'text-slate-400'
-                        }`}
-                      >
-                        {brand}
-                      </button>
-                      
-                      {/* Divider */}
-                      <div className={`w-px h-3 ${isSelected ? 'bg-red-500/30' : 'bg-slate-600'}`}></div>
-
-                      {/* Analysis Button */}
-                      <button
-                        onClick={(e) => {
-                           e.stopPropagation();
-                           onOpenBrandAnalysis(brand);
-                        }}
-                        className={`px-1.5 py-1 text-[10px] hover:bg-slate-700/50 rounded-r ${
-                             isSelected ? 'text-red-400' : 'text-slate-500 hover:text-white'
-                        }`}
-                        title={`AI 分析: ${brand}`}
-                      >
-                        🔍
-                      </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="h-px bg-slate-700 my-4" />
-
-          {/* Types */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">类型</label>
-            <div className="flex flex-col gap-1.5">
-              {NEWS_TYPES_LIST.map(type => (
-                <label key={type} className="flex items-center space-x-2 text-sm cursor-pointer group">
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    filters.selectedTypes.includes(type) ? 'bg-red-500 border-red-500' : 'border-slate-600 group-hover:border-slate-500'
-                  }`}>
-                    {filters.selectedTypes.includes(type) && (
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    className="hidden"
-                    checked={filters.selectedTypes.includes(type)}
-                    onChange={() => handleTypeChange(type)}
-                  />
-                  <span className={filters.selectedTypes.includes(type) ? 'text-slate-200' : 'text-slate-400 group-hover:text-slate-300'}>
-                    {NEWS_TYPE_LABELS[type]}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
-      
-      <div className="p-4 border-t border-slate-700 text-center text-xs text-slate-500">
-        © 2025 Auto Insight
+
+      {/* 4. Workbench Entry */}
+      <div className="p-4 border-t border-slate-800/50 bg-[#0b1120]">
+         <button 
+           onClick={() => onChangeView('workbench')}
+           className={`w-full py-2.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-2 group ${
+             currentView === 'workbench' 
+                ? 'bg-slate-800 border-slate-600 text-white' 
+                : 'border-dashed border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+           }`}
+         >
+           <span className="group-hover:rotate-90 transition-transform">⚙️</span> 
+           Data Center
+         </button>
       </div>
     </aside>
   );
