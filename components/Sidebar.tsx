@@ -8,7 +8,7 @@ interface SidebarProps {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   availableBrands: string[];
-  onUpdateBrands: (brands: string[]) => void; // Added for brand management
+  onUpdateBrands: (brands: string[]) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -22,17 +22,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isEditingBrands, setIsEditingBrands] = useState(false);
   
   // Navigation Item
-  const NavItem = ({ view, icon, label }: { view: 'dashboard' | 'feed' | 'workbench', icon: string, label: string }) => (
+  const NavItem = ({ view, icon, label }: { view: 'dashboard' | 'feed' | 'workbench', icon: React.ReactNode, label: string }) => (
     <button
       onClick={() => onChangeView(view)}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group mb-1 ${
         currentView === view 
-          ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/40 font-bold' 
-          : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+          ? 'bg-blue-50 text-blue-700 font-bold border-r-4 border-blue-600 rounded-r-none' 
+          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
       }`}
     >
-      <span className={`text-xl transition-transform group-hover:scale-110 ${currentView === view ? 'scale-110' : ''}`}>{icon}</span>
-      <span className="text-sm tracking-wide">{label}</span>
+      <span className={`text-lg transition-transform ${currentView === view ? 'scale-110' : ''}`}>{icon}</span>
+      <span className="text-sm font-medium">{label}</span>
     </button>
   );
 
@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleBrandToggle = (brand: string) => {
-    if (isEditingBrands) return; // Prevent filtering while editing
+    if (isEditingBrands) return;
     setFilters(prev => {
       const exists = prev.selectedBrands.includes(brand);
       return {
@@ -67,7 +67,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       if (confirm(`确定要删除品牌 "${brandToDelete}" 吗?`)) {
           const newList = availableBrands.filter(b => b !== brandToDelete);
           onUpdateBrands(newList);
-          // Also remove from filters if selected
           setFilters(prev => ({
               ...prev,
               selectedBrands: prev.selectedBrands.filter(b => b !== brandToDelete)
@@ -98,59 +97,59 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const getTypeColor = (type: NewsType, isSelected: boolean) => {
-      if (!isSelected) return 'bg-slate-800/40 text-slate-500 border-slate-700/50 hover:border-slate-600 opacity-60';
+      if (!isSelected) return 'bg-white text-slate-500 border-slate-200 hover:border-slate-300';
       switch(type) {
-          case NewsType.LAUNCH: return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
-          case NewsType.POLICY: return 'bg-red-500/20 text-red-400 border-red-500/50';
-          case NewsType.SALES: return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50';
-          default: return 'bg-slate-100/10 text-white border-slate-400/50';
+          case NewsType.LAUNCH: return 'bg-blue-50 text-blue-600 border-blue-200 font-bold';
+          case NewsType.POLICY: return 'bg-red-50 text-red-600 border-red-200 font-bold';
+          case NewsType.SALES: return 'bg-emerald-50 text-emerald-600 border-emerald-200 font-bold';
+          default: return 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
       }
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-[#0b1120] text-slate-100 flex flex-col z-50 shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+    <aside className="fixed left-0 top-0 h-full w-64 bg-white text-slate-800 flex flex-col z-50 border-r border-slate-200 shadow-sm">
       {/* 1. Logo Area */}
-      <div className="p-6 pb-2">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-red-900/20">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <div className="p-6 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-500 rounded-lg flex items-center justify-center font-bold text-white shadow-md shadow-red-200">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white leading-none">
+            <h1 className="text-xl font-extrabold tracking-tight text-slate-900 leading-none">
                 Auto Insight
             </h1>
-            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">UAE Intelligence</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">阿联酋市场情报</p>
           </div>
         </div>
       </div>
 
       {/* 2. Main Navigation */}
-      <div className="px-4 py-6 space-y-2 border-b border-slate-800/50">
-        <NavItem view="dashboard" icon="📊" label="汇总舱 Dashboard" />
-        <NavItem view="feed" icon="⚡" label="新闻流 Feed" />
+      <div className="px-3 py-6 space-y-1">
+        <NavItem view="dashboard" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>} label="数据驾驶舱" />
+        <NavItem view="feed" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" /></svg>} label="情报信息流" />
       </div>
 
       {/* 3. Command Center (Filters) */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar space-y-8">
+      <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar space-y-8 bg-slate-50/50">
         
         {/* Type Matrix */}
         <div>
-           <div className="flex items-center gap-2 mb-3 px-1 justify-between">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Layers</span>
+           <div className="flex items-center gap-2 mb-3 justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">数据层级</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
                 {/* ALL BUTTON */}
                 <button
                     onClick={handleTypeAll}
-                    className={`px-2 py-2 rounded-lg border text-[10px] font-bold transition-all duration-200 flex items-center justify-center text-center ${
+                    className={`px-2 py-2.5 rounded-md border text-xs font-bold transition-all duration-200 flex items-center justify-center text-center ${
                        isAllTypes 
-                       ? 'bg-slate-100 text-slate-900 border-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-                       : 'bg-slate-800/40 text-slate-500 border-slate-700/50 hover:border-slate-600'
+                       ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                       : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                     }`}
                 >
-                    ALL
+                    全部类型
                 </button>
 
                 {NEWS_TYPES_LIST.map(type => {
@@ -159,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <button
                             key={type}
                             onClick={() => handleTypeToggle(type)}
-                            className={`px-2 py-2 rounded-lg border text-[10px] font-medium transition-all duration-200 flex items-center justify-center text-center ${getTypeColor(type, isSelected)}`}
+                            className={`px-2 py-2.5 rounded-md border text-xs font-medium transition-all duration-200 flex items-center justify-center text-center ${getTypeColor(type, isSelected)}`}
                         >
                             {NEWS_TYPE_LABELS[type]}
                         </button>
@@ -170,30 +169,27 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Brand Matrix (With Management) */}
         <div>
-          <div className="flex items-center justify-between gap-2 mb-3 px-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Targets</span>
+          <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">监控品牌</span>
                 <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-slate-600">
-                        {isEditingBrands ? 'Editing...' : `${isAllBrands ? 'All' : filters.selectedBrands.length} Selected`}
-                    </span>
                     <button 
                         onClick={() => setIsEditingBrands(!isEditingBrands)}
-                        className={`text-xs p-1 rounded hover:bg-slate-800 transition-colors ${isEditingBrands ? 'text-red-500 bg-red-500/10' : 'text-slate-500'}`}
-                        title="Manage Brands"
+                        className={`text-xs p-1.5 rounded hover:bg-slate-200 transition-colors ${isEditingBrands ? 'text-red-600 bg-red-50' : 'text-slate-400'}`}
+                        title="管理品牌"
                     >
-                        ⚙️
+                        ⚙️ 管理
                     </button>
                 </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {/* ALL BUTTON (Hidden in edit mode) */}
             {!isEditingBrands && (
                 <button
                     onClick={handleBrandAll}
-                    className={`px-3 py-1 text-[10px] rounded-md border transition-all font-bold ${
+                    className={`px-3 py-1.5 text-xs rounded-full border transition-all font-bold ${
                         isAllBrands
-                        ? 'bg-slate-100 text-slate-900 border-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-                        : 'bg-slate-800/30 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
                     }`}
                 >
                     ALL
@@ -206,16 +202,16 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={brand}
                   onClick={() => isEditingBrands ? handleDeleteBrand(brand) : handleBrandToggle(brand)}
-                  className={`px-2 py-1 text-[10px] rounded-md border transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1.5 text-xs rounded-full border transition-all flex items-center gap-1 ${
                     isEditingBrands 
-                        ? 'bg-slate-800 border-red-900/50 text-slate-400 hover:border-red-500 hover:text-red-400 cursor-pointer'
+                        ? 'bg-white border-red-200 text-slate-400 hover:border-red-500 hover:text-red-500 cursor-pointer border-dashed'
                         : isSelected
-                            ? 'bg-red-600 text-white border-red-500 font-bold shadow-md'
-                            : 'bg-slate-800/30 border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                            ? 'bg-red-600 text-white border-red-600 font-bold shadow-md'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
                   }`}
                 >
                   {brand}
-                  {isEditingBrands && <span className="text-[8px] opacity-50 ml-1">✕</span>}
+                  {isEditingBrands && <span className="text-[10px] ml-1">✕</span>}
                 </button>
               );
             })}
@@ -224,9 +220,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             {isEditingBrands && (
                 <button
                     onClick={handleAddBrand}
-                    className="px-2 py-1 text-[10px] rounded-md border border-dashed border-slate-600 text-slate-500 hover:text-white hover:border-slate-400 hover:bg-slate-800 transition-all"
+                    className="px-3 py-1.5 text-xs rounded-full border border-dashed border-slate-300 text-slate-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all font-bold"
                 >
-                    + Add
+                    + 新增
                 </button>
             )}
           </div>
@@ -235,17 +231,18 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 4. Workbench Entry */}
-      <div className="p-4 border-t border-slate-800/50 bg-[#0b1120]">
+      <div className="p-4 border-t border-slate-200 bg-slate-50">
          <button 
            onClick={() => onChangeView('workbench')}
-           className={`w-full py-2.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-2 group ${
+           className={`w-full py-3 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-2 group ${
              currentView === 'workbench' 
-                ? 'bg-slate-800 border-slate-600 text-white' 
-                : 'border-dashed border-slate-700 text-slate-500 hover:border-slate-500 hover:text-slate-300'
+                ? 'bg-slate-800 border-slate-800 text-white' 
+                : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-700 hover:shadow-sm'
            }`}
          >
            <span className="group-hover:rotate-90 transition-transform">⚙️</span> 
-           Data Center
+           数据采集中心
+           <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 ml-1">仅管理员</span>
          </button>
       </div>
     </aside>
