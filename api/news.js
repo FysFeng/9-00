@@ -66,11 +66,12 @@ export default async function handler(req, res) {
       }
 
       // Save 'news.json'
-      // cacheControlMaxAge: 0 suggests CDN to not cache the blob itself
+      // addRandomSuffix: false ensures we keep the same filename like a database
+      // addOverwrite: true is REQUIRED when addRandomSuffix is false and file exists
       await put('news.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
-        allowOverwrite: true,   // <--- 关键！允许覆盖旧文件
+        addOverwrite: true,
         token,
         contentType: 'application/json',
         cacheControlMaxAge: 0
