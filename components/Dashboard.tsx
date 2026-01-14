@@ -57,13 +57,13 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
   }, [hoveredLoc, news]);
 
   const locations: Record<string, { x: number; y: number; label: string; cnName: string }> = {
-    'Abu Dhabi': { x: 30, y: 78, label: 'ABU DHABI', },
-    'Dubai': { x: 78, y: 38, label: 'DUBAI' },
-    'Sharjah': { x: 84, y: 32, label: 'SHJ'},
-    'Ajman': { x: 88, y: 28, label: 'AJM'},
-    'Umm Al Quwain': { x: 92, y: 24, label: 'UAQ'},
-    'Ras Al Khaimah': { x: 96, y: 16, label: 'RAK'},
-    'Fujairah': { x: 105, y: 40, label: 'FUJ' },
+    'Abu Dhabi': { x: 30, y: 78, label: 'ABU DHABI', cnName: '阿布扎比' },
+    'Dubai': { x: 78, y: 38, label: 'DUBAI', cnName: '迪拜' },
+    'Sharjah': { x: 84, y: 32, label: 'SHJ', cnName: '沙迦' },
+    'Ajman': { x: 88, y: 28, label: 'AJM', cnName: '阿治曼' },
+    'Umm Al Quwain': { x: 92, y: 24, label: 'UAQ', cnName: '乌姆盖万' },
+    'Ras Al Khaimah': { x: 96, y: 16, label: 'RAK', cnName: '哈伊马角' },
+    'Fujairah': { x: 105, y: 40, label: 'FUJ', cnName: '富查伊拉' },
   };
 
   const getVisuals = (loc: string) => {
@@ -109,7 +109,7 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
       </svg>
       {/* Tooltip Overlay */}
       {hoveredLoc && (
-          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-xl z-20 min-w-[120px]">
+          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-xl z-20 min-w-[120px] pointer-events-none">
               <h4 className="text-xs font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 flex justify-between">
                   {locations[hoveredLoc].cnName} <span className="text-blue-600 font-mono">{getVisuals(hoveredLoc).count}</span>
               </h4>
@@ -211,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
 
   // --- UI Components ---
   const CardHeader = ({ title, extra }: { title: string, extra?: React.ReactNode }) => (
-      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 relative z-20">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
               {title}
@@ -226,8 +226,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
       {/* 1. Top Bar: Title & Time Controls */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
-             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场观察</h1>
-             <p className="text-xs text-slate-500 mt-1">实时数据观测与竞品分析</p>
+             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场信息舱</h1>
+             <p className="text-xs text-slate-500 mt-1">数据与竞品分析</p>
          </div>
          <div className="flex bg-slate-100 p-1 rounded-lg">
              {(['7D', '30D', 'YTD', 'ALL'] as const).map(t => (
@@ -253,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
           <div className="md:col-span-3 space-y-4">
               
               {/* Brand Share */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col">
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col overflow-hidden">
                   <CardHeader title="品牌声量份额" />
                   <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
@@ -273,11 +273,16 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               </div>
 
               {/* Hot Topics (Simplified Word Cloud List) */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col">
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col overflow-hidden">
                   <CardHeader title="市场热词" />
                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
                       {tagData.map((item, idx) => (
-                          <div key={item[0]} className="flex items-center justify-between group cursor-pointer">
+                          <div 
+                            key={item[0]} 
+                            onClick={() => onFilterChange({ ...filters, searchQuery: item[0] })}
+                            className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors"
+                            title="点击筛选相关新闻"
+                          >
                               <div className="flex items-center gap-3">
                                   <span className={`w-5 h-5 flex items-center justify-center text-xs font-bold rounded ${
                                       idx === 0 ? 'bg-red-100 text-red-600' :
@@ -307,8 +312,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
           <div className="md:col-span-6 space-y-4">
               
               {/* Geo Map */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col relative">
-                   <div className="absolute top-5 left-5 z-10">
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col relative overflow-hidden z-0">
+                   <div className="absolute top-5 left-5 z-10 pointer-events-none">
                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                            <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
                            区域活跃热力
@@ -318,7 +323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                        <UaeTechMap data={mapData} news={news} />
                    </div>
                    {/* Map Legend Overlay */}
-                   <div className="absolute bottom-5 right-5 bg-white/80 backdrop-blur p-2 rounded border border-slate-100 text-[10px] space-y-1 shadow-sm">
+                   <div className="absolute bottom-5 right-5 bg-white/80 backdrop-blur p-2 rounded border border-slate-100 text-[10px] space-y-1 shadow-sm pointer-events-none">
                        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span>高活跃</div>
                        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-400"></span>中活跃</div>
                        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>低活跃</div>
@@ -326,22 +331,30 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               </div>
 
               {/* Competitor Analysis (Area Chart) */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col">
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col overflow-hidden relative z-0">
                   <CardHeader 
                     title="竞品声量趋势对比" 
                     extra={
-                        <div className="flex gap-2">
-                             <select className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500" value={compareBrandA} onChange={(e) => setCompareBrandA(e.target.value)}>
+                        <div className="flex gap-2 relative z-50">
+                             <select 
+                                className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer hover:bg-slate-100 transition-colors"
+                                value={compareBrandA} 
+                                onChange={(e) => setCompareBrandA(e.target.value)}
+                             >
                                 {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
                              </select>
                              <span className="text-slate-400 text-xs self-center">VS</span>
-                             <select className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500" value={compareBrandB} onChange={(e) => setCompareBrandB(e.target.value)}>
+                             <select 
+                                className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer hover:bg-slate-100 transition-colors"
+                                value={compareBrandB} 
+                                onChange={(e) => setCompareBrandB(e.target.value)}
+                             >
                                 {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
                              </select>
                         </div>
                     }
                   />
-                  <div className="flex-1 min-h-0">
+                  <div className="flex-1 min-h-0 relative z-0">
                       <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <defs>
@@ -373,7 +386,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               {/* KPI Group - Vertical Stack */}
               <div className="grid grid-cols-1 gap-4">
                   <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col justify-center h-28 relative overflow-hidden group">
-                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计信息总量</div>
+                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计新闻总量</div>
                       <div className="text-4xl font-extrabold text-slate-800 mt-1 z-10">{kpis.total}</div>
                       <div className="text-xs text-emerald-500 mt-1 font-medium z-10 flex items-center gap-1">
                           <span className="bg-emerald-100 px-1 rounded">实时</span> 自动同步中
@@ -387,7 +400,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                           {kpis.topBrand[0]}
                       </div>
                       <div className="text-xs text-slate-400 mt-1 font-medium z-10">
-                          {kpis.topBrand[1]} 条新闻信号
+                          {kpis.topBrand[1]} 条新闻
                       </div>
                       <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-50 rounded-full opacity-50 z-0"></div>
                   </div>
@@ -402,8 +415,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               </div>
 
               {/* Radar Chart (Strategy) */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[340px] flex flex-col">
-                  <CardHeader title="情报类型分布" />
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[340px] flex flex-col overflow-hidden">
+                  <CardHeader title="新闻类型分布" />
                   <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
