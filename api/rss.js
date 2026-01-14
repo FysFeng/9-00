@@ -1,156 +1,95 @@
-{
-import Parser from 'rss-parser';
 import * as cheerio from 'cheerio';
 
-// 1. 定义媒体资源池 (映射到真实 RSS 或 Google News 聚合)
+// 阿联酋主流汽车新闻 RSS 源配置
 const RSS_SOURCES = [
-  { 
-    id: 'drive_arabia', 
-    name: 'Drive Arabia', 
-    url: 'https://www.drivearabia.com/news/feed/',
-    type: 'direct'
-  },
-  { 
-    id: 'yallamotor', 
-    name: 'YallaMotor', 
-    url: 'https://uae.yallamotor.com/car-news/rss', 
-    type: 'direct' 
-  },
-  {
-    id: 'dubicars',
-    name: 'DubiCars News',
-    url: 'https://www.dubicars.com/news/feed/',
-    type: 'direct'
-  },
-  { 
-    id: 'gulf_business', 
-    name: 'Gulf Business (Auto)', 
-    // 使用 Google News 聚合指定 Site 是一种更稳定、不易被封的策略
-    url: 'https://news.google.com/rss/search?q=site:gulfbusiness.com+automotive&hl=en-AE&gl=AE&ceid=AE:en',
-    type: 'aggregator'
-  },
-  { 
-    id: 'thenational', 
-    name: 'The National (Motoring)', 
-    url: 'https://news.google.com/rss/search?q=site:thenationalnews.com/lifestyle/motoring&hl=en-AE&gl=AE&ceid=AE:en',
-    type: 'aggregator'
-  },
-  {
-    id: 'autodrift',
-    name: 'AutoDrift AE',
-    // 假设无直接 RSS，使用 Google News 搜索补救
-    url: 'https://news.google.com/rss/search?q=site:autodrift.ae&hl=en-AE&gl=AE&ceid=AE:en',
-    type: 'aggregator'
-  }
+  { name: 'DriveArabia', url: 'https://www.drivearabia.com/news/feed/' },
+  { name: 'Gulf News Auto', url: 'https://gulfnews.com/rss/business/auto' },
+  { name: 'YallaMotor', url: 'https://uae.yallamotor.com/car-news/rss' },
+  { name: 'Khaleej Times', url: 'https://www.khaleejtimes.com/business/auto.xml' }
 ];
-
-// 2. 汽车行业关键词白名单 (用于综合性媒体过滤)
-const AUTO_KEYWORDS = [
-  'car', 'auto', 'vehicle', 'suv', 'ev', 'electric', 'hybrid', 'sedan', 
-  'toyota', 'nissan', 'ford', 'bmw', 'mercedes', 'byd', 'tesla', 'jetour', 
-  'changan', 'geely', 'mg', 'traffic', 'road', 'dubai police', 'rta', 
-  'launch', 'drive', 'review', 'engine', 'motor'
-];
-
-// 3. 随机 User-Agent 池 (防封禁)
-const USER_AGENTS = [
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36'
-];
-
-const getRandomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
   try {
-    const parser = new Parser({
-        timeout: 8000,
-        headers: { 'User-Agent': getRandomUA() },
-        customFields: {
-          item: [
-            ['media:content', 'mediaContent'], 
-            ['media:thumbnail', 'mediaThumbnail'],
-            ['enclosure', 'enclosure'],
-            ['content:encoded', 'contentEncoded']
-          ]
-        }
-    });
+    // 1. 获取时间过滤参数 (默认为 7 天)
+    const daysParam = parseInt(req.query.days) || 7;
+    const cutoffTime = Date.now() - (daysParam * 24 * 60 * 60 * 1000);
 
-    const allItems = [];
+    // 并行请求所有 RSS 源
+    const feedPromises = RSS_SOURCES.map(async (source) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
 
-    // 并行抓取，但限制并发数防止 Vercel 内存溢出（虽然这里源不多，还是安全点好）
-    const fetchPromises = RSS_SOURCES.map(async (source) => {
-        try {
-            const feed = await parser.parseURL(source.url);
-            
-            feed.items.forEach(item => {
-                // --- 步骤 A: 关键词过滤 ---
-                const textToCheck = `${item.title} ${item.contentSnippet || ''}`.toLowerCase();
-                // 如果是聚合源，必须严格检查关键词；如果是垂直源(如 Drive Arabia)，稍微放宽
-                const isVertical = source.type === 'direct';
-                const hasKeyword = AUTO_KEYWORDS.some(k => textToCheck.includes(k));
+        const response = await fetch(source.url, { 
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutoInsightBot/1.0)' },
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-                if (!isVertical && !hasKeyword) return; // 丢弃无关新闻
+        if (!response.ok) return [];
+        const xmlText = await response.text();
 
-                // --- 步骤 B: 提取图片链接 (纯解析，不请求原文) ---
-                let imageUrl = '';
-                
-                // 1. 尝试 RSS 标准 enclosure (Podcast/Media)
-                if (item.enclosure && item.enclosure.url && item.enclosure.type?.startsWith('image')) {
-                    imageUrl = item.enclosure.url;
-                }
-                // 2. 尝试 media:content (常见于 WordPress)
-                else if (item.mediaContent && item.mediaContent.$.url) {
-                    imageUrl = item.mediaContent.$.url;
-                }
-                // 3. 尝试 media:thumbnail
-                else if (item.mediaThumbnail && item.mediaThumbnail.$.url) {
-                    imageUrl = item.mediaThumbnail.$.url;
-                }
-                // 4. 尝试从 content:encoded HTML 中正则提取第一张 img
-                else if (item.contentEncoded || item.content) {
-                    const html = item.contentEncoded || item.content;
-                    const $ = cheerio.load(html);
-                    const firstImg = $('img').first().attr('src');
-                    if (firstImg) imageUrl = firstImg;
-                }
+        // 使用 Cheerio 解析 XML
+        const $ = cheerio.load(xmlText, { xmlMode: true });
+        const items = [];
 
-                // Google News RSS 经常返回小图，如果 url 包含 googleusercontent，尝试替换大小参数 (可选优化)
-                // 但为了稳定性，暂保持原样
+        // 遍历 feed items
+        $('item').each((i, el) => {
+          // 放宽抓取深度到 20 条，确保在"最近3天"新闻很多时也能覆盖到
+          if (i >= 20) return; 
 
-                allItems.push({
-                    id: Buffer.from(item.link || item.title).toString('base64').substring(0, 16),
-                    title: item.title,
-                    link: item.link,
-                    pubDate: item.pubDate || new Date().toISOString(),
-                    sourceName: source.name,
-                    snippet: (item.contentSnippet || '').substring(0, 200) + '...',
-                    imageUrl: imageUrl, // 这里只存链接，绝不下载
-                    status: 'pending'
-                });
+          const pubDateStr = $(el).find('pubDate').text().trim();
+          const itemTime = new Date(pubDateStr).getTime();
+
+          // 核心逻辑：严格的时间过滤
+          if (isNaN(itemTime) || itemTime < cutoffTime) {
+              return; // 如果早于截止时间，跳过
+          }
+
+          const title = $(el).find('title').text().trim();
+          const link = $(el).find('link').text().trim();
+          const description = $(el).find('description').text().replace(/<[^>]*>?/gm, '').substring(0, 100);
+
+          if (title && link) {
+            items.push({
+              source: source.name,
+              title,
+              link,
+              pubDate: new Date(itemTime).toISOString().split('T')[0],
+              rawDate: itemTime,
+              description
             });
-        } catch (err) {
-            console.error(`Error fetching ${source.name}:`, err.message);
-        }
+          }
+        });
+
+        return items;
+      } catch (err) {
+        console.error(`Failed to fetch RSS from ${source.name}:`, err.message);
+        return [];
+      }
     });
 
-    await Promise.all(fetchPromises);
+    const results = await Promise.all(feedPromises);
+    
+    // 扁平化数组并按时间倒序排列
+    const allFeeds = results.flat().sort((a, b) => b.rawDate - a.rawDate);
 
-    // 按时间倒序，只返回最新的 40 条
-    const sortedItems = allItems
-        .sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate))
-        .slice(0, 40);
-
-    return res.status(200).json(sortedItems);
+    return res.status(200).json({ 
+        success: true, 
+        timeRange: `${daysParam} days`,
+        count: allFeeds.length,
+        items: allFeeds 
+    });
 
   } catch (error) {
-    console.error("RSS Handler Error:", error);
-    return res.status(500).json({ error: "Feed fetch failed" });
+    console.error("RSS Aggregation Error:", error);
+    return res.status(500).json({ error: "RSS 聚合服务暂时不可用" });
   }
-}
 }
