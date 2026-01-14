@@ -7,6 +7,8 @@ export enum NewsType {
   OTHER = "Other"
 }
 
+export type SentimentType = 'positive' | 'neutral' | 'negative';
+
 export interface NewsItem {
   id: string;
   date: string; // ISO string YYYY-MM-DD
@@ -17,6 +19,8 @@ export interface NewsItem {
   source: string;
   image: string;
   url: string;
+  sentiment?: SentimentType; // 新增：情感分析
+  tags?: string[]; // 新增：标签系统
 }
 
 export interface FilterState {

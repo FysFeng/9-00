@@ -55,10 +55,11 @@ export default async function handler(req, res) {
         try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
       
+      // Also adding addOverwrite: true here to be safe
       await put('brands.json', JSON.stringify(body), {
         access: 'public',
         addRandomSuffix: false,
-        allowOverwrite: true,
+        addOverwrite: true,
         token,
         contentType: 'application/json',
         cacheControlMaxAge: 0
