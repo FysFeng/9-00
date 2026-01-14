@@ -19,20 +19,8 @@ export interface NewsItem {
   source: string;
   image: string;
   url: string;
-  sentiment?: SentimentType;
-  tags?: string[];
-}
-
-// [Feature A Updated] 增加 imageUrl 字段
-export interface PendingItem {
-  id: string;
-  title: string;
-  link: string;
-  pubDate: string;
-  sourceName: string;
-  snippet: string;
-  imageUrl?: string; // 提取到的封面图链接
-  status: 'pending' | 'analyzed' | 'dismissed';
+  sentiment?: SentimentType; // 新增：情感分析
+  tags?: string[]; // 新增：标签系统
 }
 
 export interface FilterState {
