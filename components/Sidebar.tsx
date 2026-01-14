@@ -120,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <h1 className="text-xl font-extrabold tracking-tight text-slate-900 leading-none">
                 Auto Insight
             </h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">阿联酋市场情报</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">阿联酋市场新闻</p>
           </div>
         </div>
       </div>
@@ -241,7 +241,7 @@ const Sidebar: React.FC<SidebarProps> = ({
            }`}
          >
            <span className="group-hover:rotate-90 transition-transform">⚙️</span> 
-           数据采集中心
+           采集中心
            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 ml-1">仅管理员</span>
          </button>
       </div>
