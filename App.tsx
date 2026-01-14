@@ -4,26 +4,27 @@ import NewsCard from './components/NewsCard';
 import EntryForm from './components/EntryForm';
 import WeeklyReportModal from './components/WeeklyReportModal';
 import BrandAnalysisModal from './components/BrandAnalysisModal';
-import Inbox from './components/Inbox'; 
-import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS, NEWS_TYPE_LABELS } from './constants';
-import { NewsItem, FilterState, PendingItem } from './types';
+import Dashboard from './components/Dashboard';
+
+import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS } from './constants';
+import { NewsItem, FilterState } from './types';
+
+// 定义视图类型
+type ViewType = 'dashboard' | 'feed' | 'workbench';
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Modals
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [analyzingBrand, setAnalyzingBrand] = useState<string | null>(null);
+
+  // --- 1. 核心视图状态 ---
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
 
   // Data States
   const [news, setNews] = useState<NewsItem[]>([]);
   const [customBrands, setCustomBrands] = useState<string[]>([]);
-  const [pendingCount, setPendingCount] = useState(0); 
-
-  // Inbox -> Entry Transfer State
-  const [inboxItemToAnalyze, setInboxItemToAnalyze] = useState<PendingItem | null>(null);
 
   // Load data
   useEffect(() => {
@@ -31,25 +32,16 @@ function App() {
       setIsLoading(true);
       try {
         const newsRes = await fetch(`/api/news?_t=${Date.now()}`, { cache: 'no-store' });
-        if (!newsRes.ok) throw new Error("Connection failed");
+        if (!newsRes.ok) throw new Error("无法连接云端数据库");
         const newsData = await newsRes.json();
         setNews(newsData.length > 0 ? newsData : INITIAL_NEWS);
 
         const brandsRes = await fetch(`/api/brands?_t=${Date.now()}`, { cache: 'no-store' });
         const brandsData = await brandsRes.json();
         setCustomBrands(brandsData.length > 0 ? brandsData : DEFAULT_BRANDS);
-
-        // 加载 Inbox 数量 (忽略 404，防止阻塞 UI)
-        try {
-            const pendingRes = await fetch(`/api/pending?_t=${Date.now()}`);
-            if (pendingRes.ok) {
-                const d = await pendingRes.json();
-                setPendingCount(d.length);
-            }
-        } catch (e) { console.log("Pending API not ready yet"); }
-
       } catch (error) {
         console.error("Cloud data error:", error);
+        setDbError("离线模式：无法连接云端数据库");
         setNews(INITIAL_NEWS);
         setCustomBrands(DEFAULT_BRANDS);
       } finally {
@@ -59,22 +51,17 @@ function App() {
     fetchData();
   }, []);
   
+  // Filters State (Global)
+  const defaultEndDate = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState<FilterState>({
     startDate: '', 
-    endDate: new Date().toISOString().split('T')[0],
-    selectedBrands: DEFAULT_BRANDS, 
+    endDate: defaultEndDate,
+    selectedBrands: [], // 默认为空，表示全选
     selectedTypes: NEWS_TYPES_LIST,
     searchQuery: ''
   });
 
-  useEffect(() => {
-      if (filters.selectedBrands.length === DEFAULT_BRANDS.length && customBrands.length !== DEFAULT_BRANDS.length) {
-          setFilters(prev => ({ ...prev, selectedBrands: customBrands }));
-      }
-  }, [customBrands]);
-
-  const [activeTab, setActiveTab] = useState<'feed' | 'entry' | 'inbox'>('feed');
-
+  // Filter Logic
   const filteredNews = useMemo(() => {
     return news.filter(item => {
       const startMatch = !filters.startDate || item.date >= filters.startDate;
@@ -92,140 +79,180 @@ function App() {
     .sort((a, b) => b.date.localeCompare(a.date));
   }, [news, filters]);
 
+  // Cloud Save Helpers
   const saveNewsToCloud = async (updatedNews: NewsItem[]) => {
     setIsSaving(true);
     try {
-      await fetch('/api/news', { method: 'POST', body: JSON.stringify(updatedNews) });
-    } catch (e) { console.error("Save failed", e); } 
-    finally { setIsSaving(false); }
-  };
-
-  const handleAddNews = async (itemData: Omit<NewsItem, 'id'>) => {
-    const newId = Math.random().toString(36).substring(2, 9);
-    const newItem: NewsItem = {
-      ...itemData,
-      id: newId,
-      image: itemData.image || `https://image.pollinations.ai/prompt/${encodeURIComponent(itemData.brand + ' car')}?nologo=true`
-    };
-    const newNewsList = [newItem, ...news];
-    setNews(newNewsList);
-    setActiveTab('feed');
-    await saveNewsToCloud(newNewsList);
-
-    if (!customBrands.includes(itemData.brand)) {
-        const newBrands = [...customBrands, itemData.brand];
-        setCustomBrands(newBrands);
-        await fetch('/api/brands', { method: 'POST', body: JSON.stringify(newBrands) });
-        setFilters(p => ({ ...p, selectedBrands: [...p.selectedBrands, itemData.brand] }));
+      await fetch('/api/news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedNews)
+      });
+    } catch (e) {
+      alert("保存失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDeleteNews = async (id: string) => {
-    if (confirm('Delete this item?')) {
-      const newNewsList = news.filter(item => item.id !== id);
-      setNews(newNewsList);
-      await saveNewsToCloud(newNewsList);
+  const saveBrandsToCloud = async (updatedBrands: string[]) => {
+      try {
+          await fetch('/api/brands', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatedBrands)
+          });
+      } catch (e) {
+          console.error("Failed to save brands", e);
+      }
+  };
+
+  // Actions
+  const handleAddNews = (item: Omit<NewsItem, 'id'>) => {
+    const newItem = { ...item, id: Math.random().toString(36).substring(2, 15) };
+    const updated = [newItem, ...news];
+    setNews(updated);
+    saveNewsToCloud(updated);
+    // 录入后跳转回列表看结果
+    setCurrentView('feed');
+  };
+
+  const handleDeleteNews = (id: string) => {
+    if (confirm("确定删除吗？")) {
+      const updated = news.filter(item => item.id !== id);
+      setNews(updated);
+      saveNewsToCloud(updated);
     }
   };
 
-  const handleAnalyzeFromInbox = (item: PendingItem) => {
-    setInboxItemToAnalyze(item);
-    setActiveTab('entry');
+  const handleUpdateBrands = (newBrands: string[]) => {
+      setCustomBrands(newBrands);
+      saveBrandsToCloud(newBrands);
   };
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center text-slate-500 font-sans">Loading Auto Insight...</div>;
+  // Dashboard Drill Down
+  const handleDashboardDrillDown = (brand?: string) => {
+    if (brand) {
+        setFilters(prev => ({ ...prev, selectedBrands: [brand] }));
+        // 自动打开品牌分析模态框
+        setAnalyzingBrand(brand);
+    } else {
+        setFilters(prev => ({ ...prev, selectedBrands: [] }));
+        setCurrentView('feed');
+    }
+  };
+
+  if (isLoading && news.length === 0) {
+      return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+              <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                  <p className="text-slate-500 text-xs">System Initializing...</p>
+              </div>
+          </div>
+      );
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans text-slate-900 bg-slate-50">
-      <Sidebar 
-        filters={filters} 
-        setFilters={setFilters} 
-        allNews={news}
-        availableBrands={customBrands}
-        onAddBrand={(b) => {
-            const nb = [...customBrands, b]; 
-            setCustomBrands(nb); 
-            fetch('/api/brands', { method: 'POST', body: JSON.stringify(nb) });
-        }}
-        onRemoveBrand={(b) => {
-            const nb = customBrands.filter(x => x !== b);
-            setCustomBrands(nb);
-            fetch('/api/brands', { method: 'POST', body: JSON.stringify(nb) });
-        }}
-        onOpenBrandAnalysis={(b) => setAnalyzingBrand(b)}
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
+      <WeeklyReportModal 
+         isOpen={isReportModalOpen} 
+         onClose={() => setIsReportModalOpen(false)} 
+         allNews={news} 
       />
       
-      <main className="flex-1 ml-72 h-full overflow-y-auto relative">
-        <div className="max-w-5xl mx-auto p-8 pb-32">
-          
-          <div className="flex justify-between items-center mb-8">
-             <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full ${isSaving ? 'bg-yellow-400' : 'bg-green-500'}`}></span>
-                <span className="text-sm font-medium text-slate-500">
-                  {news.length} Records • {customBrands.length} Brands
-                </span>
-             </div>
-             <button onClick={() => setIsReportModalOpen(true)} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-lg shadow-sm hover:border-red-500 hover:text-red-500 transition-all">
-                Weekly Report
-             </button>
-          </div>
-
-          <div className="mb-6 flex space-x-8 border-b border-slate-200">
-              <button onClick={() => setActiveTab('feed')} className={`pb-4 text-sm font-bold transition-colors ${activeTab === 'feed' ? 'text-red-600 border-b-2 border-red-600' : 'text-slate-400 hover:text-slate-600'}`}>Live Feed</button>
-              
-              <button onClick={() => setActiveTab('inbox')} className={`pb-4 text-sm font-bold transition-colors flex items-center gap-2 ${activeTab === 'inbox' ? 'text-red-600 border-b-2 border-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                  Inbox (爬虫)
-                  {pendingCount > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingCount}</span>}
-              </button>
-
-              <button onClick={() => setActiveTab('entry')} className={`pb-4 text-sm font-bold transition-colors ${activeTab === 'entry' ? 'text-red-600 border-b-2 border-red-600' : 'text-slate-400 hover:text-slate-600'}`}>Intelligence Entry</button>
-          </div>
-
-          <div className="min-h-[500px]">
-            {activeTab === 'feed' && (
-              <div className="space-y-4">
-                {filteredNews.length > 0 ? (
-                  filteredNews.map(item => <NewsCard key={item.id} item={item} onDelete={handleDeleteNews} />)
-                ) : (
-                  <div className="text-center py-20 opacity-50">No intelligence found matching filters.</div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'inbox' && (
-                <Inbox 
-                    onAnalyze={handleAnalyzeFromInbox} 
-                    pendingCount={pendingCount}
-                    setPendingCount={setPendingCount}
-                />
-            )}
-
-            {activeTab === 'entry' && (
-              <EntryForm 
-                onAdd={handleAddNews} 
-                availableBrands={customBrands} 
-                initialData={inboxItemToAnalyze}
-                onClearInitialData={() => setInboxItemToAnalyze(null)}
-              />
-            )}
-          </div>
-        </div>
-      </main>
-
-      <WeeklyReportModal 
-        isOpen={isReportModalOpen} 
-        onClose={() => setIsReportModalOpen(false)} 
-        allNews={news} 
-      />
-
       {analyzingBrand && (
-        <BrandAnalysisModal 
-            isOpen={!!analyzingBrand}
-            onClose={() => setAnalyzingBrand(null)}
+         <BrandAnalysisModal 
+            isOpen={!!analyzingBrand} 
+            onClose={() => setAnalyzingBrand(null)} 
             brand={analyzingBrand}
             allNews={news}
-        />
+         />
       )}
+
+      {/* 1. Left Navigation Sidebar */}
+      <Sidebar 
+        currentView={currentView}
+        onChangeView={setCurrentView}
+        filters={filters} 
+        setFilters={setFilters} 
+        availableBrands={customBrands}
+        onUpdateBrands={handleUpdateBrands} // Passed handler
+      />
+
+      {/* 2. Main Content Area */}
+      <main className="flex-1 ml-64 relative min-h-screen transition-all">
+        
+        {/* VIEW: DASHBOARD */}
+        {currentView === 'dashboard' && (
+           <Dashboard 
+             news={filteredNews} 
+             availableBrands={customBrands}
+             onDrillDown={handleDashboardDrillDown}
+             filters={filters}
+             onFilterChange={setFilters}
+           />
+        )}
+
+        {/* VIEW: FEED (LIST) */}
+        {currentView === 'feed' && (
+           <div className="p-8 lg:p-12 max-w-6xl mx-auto animate-fadeIn">
+              <header className="flex justify-between items-center mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800">新闻列表</h2>
+                    <p className="text-slate-500 text-sm mt-1">
+                       筛选结果: {filteredNews.length} 条资讯
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                     <input 
+                        type="text" 
+                        placeholder="搜索标题或内容..." 
+                        className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm w-64 focus:ring-2 focus:ring-red-500 outline-none"
+                        value={filters.searchQuery}
+                        onChange={(e) => setFilters(prev => ({...prev, searchQuery: e.target.value}))}
+                     />
+                     <button 
+                        onClick={() => setIsReportModalOpen(true)}
+                        className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium shadow-sm flex items-center gap-2"
+                     >
+                        📊 生成周报
+                     </button>
+                  </div>
+              </header>
+
+              <div className="space-y-6 pb-20">
+                 {filteredNews.length > 0 ? (
+                    filteredNews.map(item => (
+                      <NewsCard key={item.id} item={item} onDelete={handleDeleteNews} />
+                    ))
+                 ) : (
+                    <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+                      <p className="text-slate-400">当前筛选条件下暂无数据</p>
+                      <button onClick={() => setFilters(prev => ({...prev, selectedBrands: [], searchQuery: ''}))} className="text-blue-500 text-sm mt-2 hover:underline">清除筛选</button>
+                    </div>
+                 )}
+              </div>
+           </div>
+        )}
+
+        {/* VIEW: WORKBENCH (ENTRY) */}
+        {currentView === 'workbench' && (
+           <div className="p-8 lg:p-12 max-w-4xl mx-auto animate-fadeIn">
+              <div className="mb-8">
+                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    🛠️ 数据中心 <span className="text-xs bg-slate-200 text-slate-500 px-2 py-1 rounded">Admin Only</span>
+                 </h2>
+                 <p className="text-slate-500 text-sm mt-1">
+                    在此处理网络爬虫抓取的原始数据，或人工录入新资讯。
+                 </p>
+              </div>
+              
+              <EntryForm onAdd={handleAddNews} availableBrands={customBrands} />
+           </div>
+        )}
+
+      </main>
     </div>
   );
 }
