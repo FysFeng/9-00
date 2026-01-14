@@ -94,20 +94,63 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
         {Object.keys(locations).map(loc => {
           const { radius, color, count } = getVisuals(loc);
           const isHovered = hoveredLoc === loc;
+          
+          // CRITICAL FIX: Determine size in JS to match React state, 
+          // instead of relying on CSS hover which causes sync issues.
+          const displayRadius = isHovered ? radius + 2 : radius;
+
           return (
-            <g key={loc} className="cursor-pointer" onMouseEnter={() => setHoveredLoc(loc)} onMouseLeave={() => setHoveredLoc(null)}>
+            <g 
+                key={loc} 
+                className="cursor-pointer" 
+                onMouseEnter={() => setHoveredLoc(loc)} 
+                onMouseLeave={() => setHoveredLoc(null)}
+                style={{ pointerEvents: 'all' }}
+            >
+                {/* Ping Animation - CRITICAL FIX: pointer-events-none to prevent it from capturing mouse and causing jitter */}
                 {count > 0 && isHovered && (
-                     <circle cx={locations[loc].x} cy={locations[loc].y} r={radius + 6} fill={color} opacity="0.2" className="animate-ping" style={{ animationDuration: '2s' }} />
+                     <circle 
+                        cx={locations[loc].x} 
+                        cy={locations[loc].y} 
+                        r={radius + 6} 
+                        fill={color} 
+                        opacity="0.2" 
+                        className="animate-ping pointer-events-none" 
+                        style={{ animationDuration: '2s' }} 
+                     />
                 )}
-                <circle cx={locations[loc].x} cy={locations[loc].y} r={radius} fill={color} opacity={0.9} stroke="#fff" strokeWidth={1.5} className="transition-all duration-300 hover:scale-110" />
+                
+                {/* Main Circle - CRITICAL FIX: Removed hover:scale CSS */}
+                <circle 
+                    cx={locations[loc].x} 
+                    cy={locations[loc].y} 
+                    r={displayRadius} 
+                    fill={color} 
+                    opacity={0.9} 
+                    stroke="#fff" 
+                    strokeWidth={1.5} 
+                    className="transition-all duration-300" 
+                />
+                
+                {/* Text Label - CRITICAL FIX: pointer-events-none */}
                 {(count > 0 || isHovered) && (
-                    <text x={locations[loc].x} y={locations[loc].y + radius + 5} fontSize="4" fill="#475569" textAnchor="middle" fontWeight="bold" className="uppercase tracking-wider pointer-events-none">{locations[loc].label}</text>
+                    <text 
+                        x={locations[loc].x} 
+                        y={locations[loc].y + displayRadius + 5} 
+                        fontSize="4" 
+                        fill="#475569" 
+                        textAnchor="middle" 
+                        fontWeight="bold" 
+                        className="uppercase tracking-wider pointer-events-none"
+                    >
+                        {locations[loc].label}
+                    </text>
                 )}
             </g>
           );
         })}
       </svg>
-      {/* Tooltip Overlay */}
+      {/* Tooltip Overlay - already has pointer-events-none */}
       {hoveredLoc && (
           <div className="absolute top-4 right-4 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-xl z-20 min-w-[120px] pointer-events-none">
               <h4 className="text-xs font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 flex justify-between">
@@ -210,8 +253,9 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
   }, [news, compareBrandA, compareBrandB]);
 
   // --- UI Components ---
+  // CRITICAL FIX: Added z-10 to Header to ensure it stays above chart layers
   const CardHeader = ({ title, extra }: { title: string, extra?: React.ReactNode }) => (
-      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 relative z-20">
+      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 relative z-10">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
               {title}
@@ -226,8 +270,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
       {/* 1. Top Bar: Title & Time Controls */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
-             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场信息舱</h1>
-             <p className="text-xs text-slate-500 mt-1">数据与竞品分析</p>
+             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场信息驾驶舱</h1>
+             <p className="text-xs text-slate-500 mt-1">实时新闻与竞品分析</p>
          </div>
          <div className="flex bg-slate-100 p-1 rounded-lg">
              {(['7D', '30D', 'YTD', 'ALL'] as const).map(t => (
@@ -335,7 +379,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                   <CardHeader 
                     title="竞品声量趋势对比" 
                     extra={
-                        <div className="flex gap-2 relative z-50">
+                        /* CRITICAL FIX: Added z-20 to select container to ensure clickability over potential chart layers */
+                        <div className="flex gap-2 relative z-20">
                              <select 
                                 className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer hover:bg-slate-100 transition-colors"
                                 value={compareBrandA} 
@@ -354,6 +399,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                         </div>
                     }
                   />
+                  {/* Chart Container - Z-0 ensures it stays below the header */}
                   <div className="flex-1 min-h-0 relative z-0">
                       <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -400,7 +446,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                           {kpis.topBrand[0]}
                       </div>
                       <div className="text-xs text-slate-400 mt-1 font-medium z-10">
-                          {kpis.topBrand[1]} 条新闻
+                          {kpis.topBrand[1]} 条新闻信号
                       </div>
                       <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-50 rounded-full opacity-50 z-0"></div>
                   </div>
@@ -416,7 +462,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
 
               {/* Radar Chart (Strategy) */}
               <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[340px] flex flex-col overflow-hidden">
-                  <CardHeader title="新闻类型分布" />
+                  <CardHeader title="情报类型分布" />
                   <div className="flex-1 min-h-0">
                       <ResponsiveContainer width="100%" height="100%">
                          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
