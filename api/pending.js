@@ -1,4 +1,4 @@
-import { put, list } from '@vercel/blob';
+import { list, del } from '@vercel/blob';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,48 +11,48 @@ export default async function handler(req, res) {
   if (!token) return res.status(503).json({ error: "未配置 Blob Token" });
 
   try {
-    // 获取列表
+    // GET: 列出所有待处理文件并聚合
     if (req.method === 'GET') {
-        const { blobs } = await list({ token, limit: 100 });
-        const blob = blobs.find(b => b.pathname === 'pending.json');
-        
-        if (!blob) return res.status(200).json([]);
+        // 1. 列出 pending/ 目录下的所有文件
+        const { blobs } = await list({ 
+            token, 
+            prefix: 'pending/', 
+            limit: 50 // 限制每次只取最新的50条，防止请求过多
+        });
 
-        // 加上时间戳防止缓存
-        const response = await fetch(`${blob.url}?t=${Date.now()}`, { cache: 'no-store' });
-        const data = await response.json();
-        return res.status(200).json(data);
+        if (blobs.length === 0) return res.status(200).json([]);
+
+        // 2. 并行获取所有文件的内容 (聚合)
+        // Vercel Blob 的 list 只返回元数据，不返回内容。我们需要内容来展示标题。
+        // 由于每个文件很小 (<5KB)，并行 fetch 速度很快。
+        const fetchPromises = blobs.map(async (blob) => {
+            try {
+                const res = await fetch(blob.url, { cache: 'no-store' });
+                if (res.ok) return await res.json();
+                return null;
+            } catch (e) {
+                return null;
+            }
+        });
+
+        const results = await Promise.all(fetchPromises);
+        
+        // 过滤掉无效数据并按时间倒序 (文件名 id 不一定有序，这里最好前端排序，或者依靠 scrapedAt)
+        const validItems = results
+            .filter(item => item !== null)
+            .sort((a, b) => new Date(b.scrapedAt) - new Date(a.scrapedAt));
+
+        return res.status(200).json(validItems);
     }
 
-    // 删除条目 (通常是在处理完之后)
+    // DELETE: 删除特定文件
     if (req.method === 'DELETE') {
         const { id } = req.query;
         if (!id) return res.status(400).json({ error: "Missing ID" });
 
-        // 读取
-        const { blobs } = await list({ token, limit: 100 });
-        const blob = blobs.find(b => b.pathname === 'pending.json');
-        if (!blob) return res.status(200).json({ success: true });
-
-        const response = await fetch(blob.url, { cache: 'no-store' });
-        let data = await response.json();
-
-        // 过滤
-        const initialLength = data.length;
-        data = data.filter(item => item.id !== id);
-
-        if (data.length === initialLength) {
-            return res.status(404).json({ error: "Item not found" });
-        }
-
-        // 写入
-        await put('pending.json', JSON.stringify(data), {
-            access: 'public',
-            addRandomSuffix: false,
-            addOverwrite: true,
-            token,
-            contentType: 'application/json'
-        });
+        // 直接删除对应的 Blob 文件，不需要读取列表 -> 过滤 -> 写入大文件
+        // 这是一个原子操作，非常快且省流量
+        await del(`pending/${id}.json`, { token });
 
         return res.status(200).json({ success: true });
     }
