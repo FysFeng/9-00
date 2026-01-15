@@ -1,6 +1,5 @@
 import { put, list } from '@vercel/blob';
 
-// Node.js Runtime
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -9,17 +8,12 @@ export default async function handler(req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-
   if (!token) {
-    if (req.method === 'GET') {
-        return res.status(200).json([]);
-    }
-    return res.status(503).json({ error: "Vercel Blob token not found" });
+    if (req.method === 'GET') return res.status(200).json([]);
+    return res.status(503).json({ error: "Storage token missing" });
   }
 
   try {
@@ -27,40 +21,31 @@ export default async function handler(req, res) {
       const { blobs } = await list({ token, limit: 100 });
       const brandsBlob = blobs.find(b => b.pathname === 'brands.json');
 
-      if (!brandsBlob) {
-        return res.status(200).json([]);
-      }
+      if (!brandsBlob) return res.status(200).json([]);
 
-      const noCacheUrl = `${brandsBlob.url}?t=${Date.now()}`;
-
-      const dataRes = await fetch(noCacheUrl, { 
-          cache: 'no-store',
-          headers: { 
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-          } 
+      const response = await fetch(`${brandsBlob.url}?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
       });
       
-      if (!dataRes.ok) {
-        throw new Error(`Failed to fetch blob content: ${dataRes.status}`);
-      }
+      if (!response.ok) throw new Error("Failed to fetch brands blob");
 
-      const data = await dataRes.json();
+      const data = await response.json();
       return res.status(200).json(data);
     }
 
     if (req.method === 'POST') {
-      let body = req.body;
-      if (typeof body === 'string') {
-        try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: "Invalid JSON" }); }
+      let payload = req.body;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
       
-      // Also adding addOverwrite: true here to be safe
-      await put('brands.json', JSON.stringify(body), {
+      // FIX: Apply allowOverwrite: true here as well
+      await put('brands.json', JSON.stringify(payload, null, 2), {
         access: 'public',
-        addRandomSuffix: false,
-        allowOverwrite: true,
         token,
+        addRandomSuffix: false,
+        allowOverwrite: true, 
         contentType: 'application/json',
         cacheControlMaxAge: 0
       });
@@ -69,9 +54,8 @@ export default async function handler(req, res) {
     }
 
     return res.status(405).end();
-
   } catch (error) {
-    console.error("Blob Error:", error);
+    console.error("Brands Blob Error:", error);
     return res.status(500).json({ error: error.message });
   }
 }
