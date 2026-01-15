@@ -82,8 +82,9 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
   };
 
   return (
-    <div className="w-full h-full relative rounded-lg flex items-center justify-center overflow-hidden">
-      <svg viewBox="0 0 140 100" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+    <div className="w-full h-full relative rounded-lg flex items-center justify-center">
+      {/* Increased ViewBox to prevent clipping of edges and tooltips/animations */}
+      <svg viewBox="-10 -10 160 120" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         {/* Map Outline - Light Gray */}
         <path d="M 20 85 L 10 70 L 15 60 L 50 50 L 70 40 L 85 35 L 95 10 L 110 15 L 115 40 L 100 50 L 90 45 L 75 55 L 60 75 L 40 90 Z" 
               fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1.5" />
@@ -95,8 +96,7 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
           const { radius, color, count } = getVisuals(loc);
           const isHovered = hoveredLoc === loc;
           
-          // CRITICAL FIX: Determine size in JS to match React state, 
-          // instead of relying on CSS hover which causes sync issues.
+          // Visual radius expands on hover
           const displayRadius = isHovered ? radius + 2 : radius;
 
           return (
@@ -107,7 +107,19 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
                 onMouseLeave={() => setHoveredLoc(null)}
                 style={{ pointerEvents: 'all' }}
             >
-                {/* Ping Animation - CRITICAL FIX: pointer-events-none to prevent it from capturing mouse and causing jitter */}
+                {/* 
+                   CRITICAL FIX: Invisible Hit Area 
+                   A large, static transparent circle that captures mouse events. 
+                   This prevents jitter when visual elements change size or move.
+                */}
+                <circle 
+                    cx={locations[loc].x} 
+                    cy={locations[loc].y} 
+                    r={radius + 15} // Large hit area
+                    fill="transparent" 
+                />
+
+                {/* Ping Animation - pointer-events-none */}
                 {count > 0 && isHovered && (
                      <circle 
                         cx={locations[loc].x} 
@@ -120,7 +132,7 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
                      />
                 )}
                 
-                {/* Main Circle - CRITICAL FIX: Removed hover:scale CSS */}
+                {/* Main Visual Circle - pointer-events-none */}
                 <circle 
                     cx={locations[loc].x} 
                     cy={locations[loc].y} 
@@ -129,19 +141,20 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
                     opacity={0.9} 
                     stroke="#fff" 
                     strokeWidth={1.5} 
-                    className="transition-all duration-300" 
+                    className="transition-all duration-300 pointer-events-none" 
                 />
                 
-                {/* Text Label - CRITICAL FIX: pointer-events-none */}
+                {/* Text Label - pointer-events-none */}
+                {/* FIX: Use static 'radius' for Y position to prevent text jumping up/down on hover */}
                 {(count > 0 || isHovered) && (
                     <text 
                         x={locations[loc].x} 
-                        y={locations[loc].y + displayRadius + 5} 
+                        y={locations[loc].y + radius + 8} 
                         fontSize="4" 
                         fill="#475569" 
                         textAnchor="middle" 
                         fontWeight="bold" 
-                        className="uppercase tracking-wider pointer-events-none"
+                        className="uppercase tracking-wider pointer-events-none select-none"
                     >
                         {locations[loc].label}
                     </text>
@@ -152,7 +165,7 @@ const UaeTechMap = ({ data, news }: { data: { location: string; count: number }[
       </svg>
       {/* Tooltip Overlay - already has pointer-events-none */}
       {hoveredLoc && (
-          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-xl z-20 min-w-[120px] pointer-events-none">
+          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-lg shadow-xl z-20 min-w-[120px] pointer-events-none animate-fadeIn">
               <h4 className="text-xs font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 flex justify-between">
                   {locations[hoveredLoc].cnName} <span className="text-blue-600 font-mono">{getVisuals(hoveredLoc).count}</span>
               </h4>
@@ -253,7 +266,6 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
   }, [news, compareBrandA, compareBrandB]);
 
   // --- UI Components ---
-  // CRITICAL FIX: Added z-10 to Header to ensure it stays above chart layers
   const CardHeader = ({ title, extra }: { title: string, extra?: React.ReactNode }) => (
       <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 relative z-10">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -265,13 +277,14 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
   );
 
   return (
-    <div className="p-6 min-h-screen bg-[#f0f2f5] space-y-4">
+    // FIX: Changed min-h-screen to min-h-full to prevent excessive vertical spacing
+    <div className="p-6 min-h-full bg-[#f0f2f5] space-y-4">
       
-      {/* 1. Top Bar: Title & Time Controls */}
+      {/* 1. Top Bar */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
-             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场信息驾驶舱</h1>
-             <p className="text-xs text-slate-500 mt-1">实时新闻与竞品分析</p>
+             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场情报驾驶舱</h1>
+             <p className="text-xs text-slate-500 mt-1">实时数据监控与竞品分析中心</p>
          </div>
          <div className="flex bg-slate-100 p-1 rounded-lg">
              {(['7D', '30D', 'YTD', 'ALL'] as const).map(t => (
@@ -290,12 +303,11 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
          </div>
       </div>
 
-      {/* 2. Main Grid Layout (12 Columns) */}
+      {/* 2. Main Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           
-          {/* === LEFT COLUMN (3/12) - Market Composition === */}
+          {/* === LEFT COLUMN (3/12) === */}
           <div className="md:col-span-3 space-y-4">
-              
               {/* Brand Share */}
               <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col overflow-hidden">
                   <CardHeader title="品牌声量份额" />
@@ -316,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                   </div>
               </div>
 
-              {/* Hot Topics (Simplified Word Cloud List) */}
+              {/* Hot Topics */}
               <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col overflow-hidden">
                   <CardHeader title="市场热词" />
                   <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
@@ -352,11 +364,12 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               </div>
           </div>
 
-          {/* === CENTER COLUMN (6/12) - The Focus === */}
+          {/* === CENTER COLUMN (6/12) === */}
           <div className="md:col-span-6 space-y-4">
               
               {/* Geo Map */}
-              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col relative overflow-hidden z-0">
+              {/* FIX: Removed overflow-hidden so tooltips are not clipped ("Blocked") */}
+              <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col relative z-0">
                    <div className="absolute top-5 left-5 z-10 pointer-events-none">
                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                            <span className="w-1 h-4 bg-blue-600 rounded-full"></span>
@@ -374,12 +387,11 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                    </div>
               </div>
 
-              {/* Competitor Analysis (Area Chart) */}
+              {/* Competitor Analysis */}
               <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[320px] flex flex-col overflow-hidden relative z-0">
                   <CardHeader 
                     title="竞品声量趋势对比" 
                     extra={
-                        /* CRITICAL FIX: Added z-20 to select container to ensure clickability over potential chart layers */
                         <div className="flex gap-2 relative z-20">
                              <select 
                                 className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer hover:bg-slate-100 transition-colors"
@@ -399,7 +411,6 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                         </div>
                     }
                   />
-                  {/* Chart Container - Z-0 ensures it stays below the header */}
                   <div className="flex-1 min-h-0 relative z-0">
                       <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -426,13 +437,12 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               </div>
           </div>
 
-          {/* === RIGHT COLUMN (3/12) - Metrics === */}
+          {/* === RIGHT COLUMN (3/12) === */}
           <div className="md:col-span-3 space-y-4">
-              
-              {/* KPI Group - Vertical Stack */}
+              {/* KPI Group */}
               <div className="grid grid-cols-1 gap-4">
                   <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col justify-center h-28 relative overflow-hidden group">
-                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计新闻总量</div>
+                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计情报总量</div>
                       <div className="text-4xl font-extrabold text-slate-800 mt-1 z-10">{kpis.total}</div>
                       <div className="text-xs text-emerald-500 mt-1 font-medium z-10 flex items-center gap-1">
                           <span className="bg-emerald-100 px-1 rounded">实时</span> 自动同步中
@@ -446,7 +456,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                           {kpis.topBrand[0]}
                       </div>
                       <div className="text-xs text-slate-400 mt-1 font-medium z-10">
-                          {kpis.topBrand[1]} 条新闻信号
+                          {kpis.topBrand[1]} 条情报信号
                       </div>
                       <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-50 rounded-full opacity-50 z-0"></div>
                   </div>
@@ -460,7 +470,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                   </div>
               </div>
 
-              {/* Radar Chart (Strategy) */}
+              {/* Radar Chart */}
               <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 h-[340px] flex flex-col overflow-hidden">
                   <CardHeader title="情报类型分布" />
                   <div className="flex-1 min-h-0">
