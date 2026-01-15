@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     await put(`pending/${id}.json`, JSON.stringify(newItem), {
         access: 'public',
         addRandomSuffix: false, // 确定性文件名
-        addOverwrite: true,
+        allowOverwrite: true,
         token,
         contentType: 'application/json',
         cacheControlMaxAge: 0 // 不缓存
