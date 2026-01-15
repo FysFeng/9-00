@@ -283,8 +283,8 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
       {/* 1. Top Bar */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
-             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场情报驾驶舱</h1>
-             <p className="text-xs text-slate-500 mt-1">实时数据监控与竞品分析中心</p>
+             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">UAE 汽车市场驾驶舱</h1>
+             <p className="text-xs text-slate-500 mt-1">实时数据与竞品动态</p>
          </div>
          <div className="flex bg-slate-100 p-1 rounded-lg">
              {(['7D', '30D', 'YTD', 'ALL'] as const).map(t => (
@@ -442,7 +442,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
               {/* KPI Group */}
               <div className="grid grid-cols-1 gap-4">
                   <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200 flex flex-col justify-center h-28 relative overflow-hidden group">
-                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计情报总量</div>
+                      <div className="text-xs text-slate-500 font-bold uppercase z-10">累计新闻总量</div>
                       <div className="text-4xl font-extrabold text-slate-800 mt-1 z-10">{kpis.total}</div>
                       <div className="text-xs text-emerald-500 mt-1 font-medium z-10 flex items-center gap-1">
                           <span className="bg-emerald-100 px-1 rounded">实时</span> 自动同步中
@@ -456,7 +456,7 @@ const Dashboard: React.FC<DashboardProps> = ({ news, availableBrands, onDrillDow
                           {kpis.topBrand[0]}
                       </div>
                       <div className="text-xs text-slate-400 mt-1 font-medium z-10">
-                          {kpis.topBrand[1]} 条情报信号
+                          {kpis.topBrand[1]} 条新闻信号
                       </div>
                       <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-purple-50 rounded-full opacity-50 z-0"></div>
                   </div>
