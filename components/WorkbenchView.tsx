@@ -44,7 +44,7 @@ function DigestTab({ items }: { items: NewsItem[] }) {
         }
         setPushState('pushing');
         try {
-            const res = await fetch('/api/push', {
+            const res = await fetch('/api/collect?action=push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ digest, webhookUrl, type: webhookType })

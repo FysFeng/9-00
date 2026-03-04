@@ -69,7 +69,7 @@ export const analyzeTextWithQwen = async (text: string, currentBrands: string[] 
 
   try {
     // 直接请求后端 API
-    const response = await fetch("/api/analyze", {
+    const response = await fetch("/api/ai?action=analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, prompt: systemPrompt })
@@ -145,7 +145,7 @@ export const generateBrandReport = async (brand: string, periodLabel: string, ne
     `;
 
   try {
-    const response = await fetch("/api/analyze", {
+    const response = await fetch("/api/ai?action=analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: `News Context:\n${newsContext}`, prompt: systemPrompt })

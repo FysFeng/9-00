@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => {
       {
         name: 'configure-server',
         configureServer(server) {
-          // 在本地开发服务器中模拟 Vercel Function 的 /api/analyze 接口
-          server.middlewares.use('/api/analyze', async (req, res, next) => {
+          // 模拟 /api/ai 本地代理 (analyze + digest)
+          server.middlewares.use('/api/ai', async (req, res, next) => {
             if (req.method === 'POST') {
               let body = '';
               req.on('data', chunk => { body += chunk.toString(); });
@@ -75,8 +75,8 @@ export default defineConfig(({ mode }) => {
             }
           });
 
-          // 模拟 /api/push 本地代理
-          server.middlewares.use('/api/push', async (req, res, next) => {
+          // 模拟 /api/collect?action=push 本地代理
+          server.middlewares.use('/api/collect', async (req, res, next) => {
             if (req.method === 'POST') {
               let body = '';
               req.on('data', chunk => { body += chunk.toString(); });
@@ -154,11 +154,11 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        '/api/news': {
+        '/api/data': {
           target: 'https://9-00-main.vercel.app',
           changeOrigin: true,
         },
-        '/api/brands': {
+        '/api/collect': {
           target: 'https://9-00-main.vercel.app',
           changeOrigin: true,
         }

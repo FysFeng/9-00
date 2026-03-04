@@ -51,7 +51,7 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
 如果新闻与中东市场无关，直接返回：{"relevant": false}`;
 
     try {
-        const res = await fetch('/api/analyze', {
+        const res = await fetch('/api/ai?action=analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -104,7 +104,7 @@ export async function fetchAndScreenRSS(
 ): Promise<RSSFetchResult> {
 
     // 1. 拉取原始 RSS
-    const rssRes = await fetch(`/api/rss?days=${days}`);
+    const rssRes = await fetch(`/api/collect?action=rss&days=${days}`);
     if (!rssRes.ok) throw new Error('RSS 服务请求失败');
     const { items }: { items: RawRSSItem[] } = await rssRes.json();
 
@@ -138,7 +138,7 @@ export async function fetchAndScreenRSS(
  * 每日简报生成：取最近的 items 调用 /api/digest
  */
 export async function generateDailyDigest(items: NewsItem[]): Promise<string> {
-    const res = await fetch('/api/digest', {
+    const res = await fetch('/api/ai?action=digest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),

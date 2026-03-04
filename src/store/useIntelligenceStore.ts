@@ -81,7 +81,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     fetchData: async () => {
         set({ isLoading: true, dbError: null });
         try {
-            const newsRes = await fetch(`/api/news?_t=${Date.now()}`, { cache: 'no-store' });
+            const newsRes = await fetch(`/api/data?type=news&_t=${Date.now()}`, { cache: 'no-store' });
             if (!newsRes.ok) throw new Error("Cloud connection failed");
             const newsData = await newsRes.json();
 
@@ -101,7 +101,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
                 return { ...item, type: mappedType };
             });
 
-            const brandsRes = await fetch(`/api/brands?_t=${Date.now()}`, { cache: 'no-store' });
+            const brandsRes = await fetch(`/api/data?type=brands&_t=${Date.now()}`, { cache: 'no-store' });
             const brandsData = await brandsRes.json();
 
             set({
@@ -131,7 +131,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         set({ rawIntelligence: updated });
 
         try {
-            const res = await fetch('/api/news', {
+            const res = await fetch('/api/data?type=news', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -153,7 +153,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         const updated = [...items, ...rawIntelligence];
         set({ rawIntelligence: updated });
         try {
-            const res = await fetch('/api/news', {
+            const res = await fetch('/api/data?type=news', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -177,7 +177,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         set({ rawIntelligence: updated });
 
         try {
-            const res = await fetch('/api/news', {
+            const res = await fetch('/api/data?type=news', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -194,7 +194,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     updateBrands: async (brands) => {
         set({ customBrands: brands });
         try {
-            await fetch('/api/brands', {
+            await fetch('/api/data?type=brands', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(brands)

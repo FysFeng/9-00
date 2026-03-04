@@ -54,7 +54,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
   const fetchPendingItems = async () => {
     setIsLoadingList(true);
     try {
-      const res = await fetch(`/api/pending?_t=${Date.now()}`);
+      const res = await fetch(`/api/collect?action=pending&_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setPendingItems(data);
@@ -71,7 +71,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
     setError(null);
     setRssItems([]); // Clear previous results while scanning
     try {
-      const res = await fetch(`/api/rss?days=${rssDays}`);
+      const res = await fetch(`/api/collect?action=rss&days=${rssDays}`);
       if (!res.ok) throw new Error("RSS 扫描失败");
       const data = await res.json();
       setRssItems(data.items || []);
@@ -95,7 +95,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
     setIsSpidering(true);
     setError(null);
     try {
-      const res = await fetch('/api/spider', {
+      const res = await fetch('/api/collect?action=spider', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl })
@@ -118,7 +118,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
     // Optimistic UI update
     setPendingItems(prev => prev.filter(i => i.id !== id));
     try {
-      await fetch(`/api/pending?id=${id}`, { method: 'DELETE' });
+      await fetch(`/api/collect?action=pending&id=${id}`, { method: 'DELETE' });
     } catch (e) {
       console.error("Delete failed", e);
     }
@@ -213,8 +213,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         <button
           onClick={() => setActiveTab('spider')}
           className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'spider'
-              ? 'bg-white text-blue-700 border-b-4 border-blue-600'
-              : 'bg-slate-50 text-slate-500 hover:text-slate-700'
+            ? 'bg-white text-blue-700 border-b-4 border-blue-600'
+            : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
           <span>📥</span> 自动采集箱
@@ -225,8 +225,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         <button
           onClick={() => setActiveTab('ai')}
           className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'ai'
-              ? 'bg-white text-blue-700 border-b-4 border-blue-600'
-              : 'bg-slate-50 text-slate-500 hover:text-slate-700'
+            ? 'bg-white text-blue-700 border-b-4 border-blue-600'
+            : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
           🤖 销售情报 AI 提炼
@@ -234,8 +234,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         <button
           onClick={() => setActiveTab('manual')}
           className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'manual'
-              ? 'bg-white text-blue-700 border-b-4 border-blue-600'
-              : 'bg-slate-50 text-slate-500 hover:text-slate-700'
+            ? 'bg-white text-blue-700 border-b-4 border-blue-600'
+            : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
           ✍️ 手动录入
@@ -435,8 +435,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                 onClick={handleAiAnalyze}
                 disabled={isProcessing || !aiText.trim()}
                 className={`px-6 py-2.5 rounded-lg font-bold text-white transition-all flex items-center gap-2 ${isProcessing || !aiText.trim()
-                    ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/30'
+                  ? 'bg-slate-300 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/30'
                   }`}
               >
                 {isProcessing && <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>}
