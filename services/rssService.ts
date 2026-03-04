@@ -43,6 +43,7 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
 {
   "relevant": true,
   "brand": "必须从预设列表中选择最接近的一个。预设列表：['Changan 长安', 'BYD 比亚迪', 'Geely 吉利', 'Jetour 捷途', 'Chery 奇瑞', 'GWM 长城', 'Toyota 丰田', 'Nissan 日产', 'Hyundai 现代', 'Kia 起亚', 'Ford 福特', 'Lexus 雷克萨斯', '政策相关', 'Other 其他品牌']。如果提到子品牌（如欧萌达、星途，请映射为 Chery 奇瑞；极氪映射为 Geely 吉利）。",
+  "chineseTitle": "必须是中文，15字以内的精炼标题，用中文翻译并压缩原标题成信息密度最高的一句话，包含品牌名，例：'BYD在迪拜推出Seal纯电轿车'",
   "type": "必须严格是以下枚举值之一：'Launch (Physical)' | 'Tech & OTA' | 'Market & Sales' | 'Policy' | 'Network & Service' | 'Competitor Tactics' | 'Corp Strategy' | 'Other'",
   "summary": "采用'So What'分析法，用一两句话总结，格式必须为：[事实描述] + [对长安或阿联酋市场的直接业务影响]。语言必须客观商业化，禁止使用浮夸词汇（如：惨烈作战等）。",
   "tags": ["提取1-2个核心业务关键词，如 '价格战', '纯电引入', '旗舰降价'"]
@@ -81,7 +82,7 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
             brand: parsed.brand || 'Other 其他品牌',
             date: item.date,
             type: parsedType,
-            title: item.title,
+            title: parsed.chineseTitle || item.title,  // 优先显示中文标题
             summary: parsed.summary || item.snippet,
             tags: parsed.tags || [],
             url: item.url,

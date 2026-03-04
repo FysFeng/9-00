@@ -53,43 +53,65 @@ async function handleDigest(req, res, apiKey) {
         return res.status(400).json({ error: '请传入至少一条资讯' });
     }
 
-    const newsText = items
-        .slice(0, 30)
-        .map((item, i) => `${i + 1}. [${item.brand || '市场'}] ${item.title} (${item.date})`)
-        .join('\n');
+    // 计算时间范围
+    const dates = items.map(i => i.date).filter(Boolean).sort();
+    const dateRange = dates.length > 0 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : new Date().toISOString().split('T')[0];
+
+    // 按资讯类型分组，并格式化给 AI
+    const grouped = {};
+    items.forEach(item => {
+        const type = item.type || 'Other';
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}：${item.summary || ''}`);
+    });
+
+    const groupedText = Object.entries(grouped)
+        .map(([type, lines]) => `### ${type}\n${lines.slice(0, 8).join('\n')}`)
+        .join('\n\n');
 
     const systemPrompt = `你是长安汽车出海中东业务的战略情报官。
-根据以下今日收集的阿联酋市场资讯列表，生成一份高管视角的【每日商业简报】。
-你的目标是**从零散的信息中发现战略威胁与趋势**，而不是简单的机器翻译。
+根据以下已按资讯类型分组的市场情报，生成一份严格格式的【中东大区市场简报】。
 
-简报绝对格式要求：
-## 中东大区市场简报 · ${new Date().toISOString().split('T')[0]}
+【输出格式要求】（严格遵守，不可更改分类）：
 
-**🚨 核心战略预警**
-(如果竞品有重大价格调整、爆款新车发布、或对长安有直接威胁的政府政策，提炼 1-2 条。必须点出"为什么危险"或"带来什么压力"。)
+## 中东大区市场简报
+**情报覆盖时间：${dateRange}**
 
-**🎯 长安/中国品牌动向**
-(总结长安及其他核心出海品牌如比亚迪、奇瑞的动作，说明这些动作对整体市场格局的意义。)
+对于以下每个有内容的资讯类型，生成一个小节。无内容的类型直接省略：
 
-**⚔️ 竞品战术观测**
-(总结日韩传统品牌或当地渠道的防御性战术操作，如促销、延保、政府大单等，3条以内。)
+### 📦 Launch (Physical) · 新车发布
+（本周期内有哪些品牌发布了新车型？对长安的威胁程度如何？）
 
-**🌍 大盘背景**
-(用一句话高度概括当天的整体中东汽车市场冷暖温度或宏观事件。)
+### ⚡ Tech & OTA · 技术/OTA
+（技术层面的重要动作，如智能化升级、电动化进展）
+
+### 📊 Market & Sales · 销量/市场
+（各品牌的销量表现行情，及市场份额变化趋势）
+
+### 🏛 Policy · 政策法规
+（阿联酋/海湾地区出台了哪些与汽车行业相关的政策？）
+
+### 🔧 Network & Service · 渠道/售后
+（经销商扩张、服务网络更新、用户服务相关）
+
+### 🥊 Competitor Tactics · 竞品战术
+（重点！竞品在价格、促销、捆绑服务上的战术动作）
+
+### 🏢 Corp Strategy · 企业战略
+（品牌层面的战略合作、融资、市场定位调整）
 
 ---
-【极其重要的规则】：
-1. 语言必须高度精炼、客观、具有咨询公司级的专业感。
-2. 绝对克制，禁止使用浮夸的网络文学和情绪化词汇（如：如临大敌、惨烈作战、霸气登场等）。
-3. 每条总结必须提炼出 "So What (业务影响)"，不能只描述表面事件。
-4. 宁缺毋滥：如果某项没有实质性高价值情报，直接整块省略该板块。
-5. 只输出纯文本 Markdown，不要加任何其他客套话。`;
+【规则】：
+1. 每小节用 2-4 条精炼的要点，每条必须包含品牌名和"So What（影响）"。
+2. 语言客观、具有咨询公司专业感；禁止情绪化浮夸词汇。
+3. 若某类型没有相关情报，直接跳过该小节。
+4. 最后附一行：**📌 执行要点**，为长安销售团队提炼出 1-2 条最需立即关注的行动建议。`;
 
     const { response, data } = await callQwen(
         apiKey,
         [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `以下是今日资讯列表：\n${newsText}` },
+            { role: 'user', content: `以下是已分组的情报列表：\n\n${groupedText}` },
         ],
         0.3,
     );

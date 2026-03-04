@@ -132,8 +132,8 @@ export default function CompetitorRadar({
                 </select>
             </div>
 
-            {/* Chart */}
-            <div className="flex-1 min-h-[280px] w-full">
+            {/* Chart — explicit px height avoids Recharts -1 bug when parent is flex */}
+            <div style={{ height: 280, width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                         <PolarGrid stroke="#e2e8f0" strokeDasharray="3 3" />
