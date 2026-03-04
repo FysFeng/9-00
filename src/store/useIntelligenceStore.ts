@@ -36,7 +36,7 @@ interface IntelligenceStore {
 }
 
 // 核心圈层定义
-export const CHALLENGER_BRANDS = ["BYD 比亚迪", "Geely 吉利", "Jetour 捷途", "Chery 奇瑞", "GWM 长城", "HAVAL 哈弗", "GAC AION 广汽埃安", "MG 名爵", "Deepal 深蓝"];
+export const CHALLENGER_BRANDS = ["BYD 比亚迪", "Geely 吉利", "Jetour 捷途", "Chery 奇瑞", "GWM 长城"];
 export const INCUMBENT_BRANDS = ["Toyota 丰田", "Nissan 日产", "Hyundai 现代", "Kia 起亚", "Ford 福特", "Lexus 雷克萨斯"];
 
 const defaultEndDate = new Date().toISOString().split('T')[0];

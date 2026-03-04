@@ -29,19 +29,26 @@ const uid = () => `rss-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 // 调用 /api/analyze 请求 Qwen 结构化提取
 async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
-    const systemPrompt = `你是长安汽车阿联酋销售团队的市场分析助手。
-分析以下新闻标题和摘要，判断是否与"阿联酋汽车市场"相关（品牌动态、车型、价格、政策、销量等）。
+    const systemPrompt = `你是长安及中国汽车品牌出海中东业务的资深商业情报分析师。
+你的任务是评估输入的新闻是否对"阿联酋及海湾国家汽车市场"有直接的商业价值，并从中提取结构化情报。
 
-如果相关，返回 JSON（不要加 markdown 代码块）：
+【核心过滤规则】 (Noise Filter)
+若新闻仅属于以下宏观事件但对阿联酋无**直接业务影响**，必须判定为不相关 (relevant: false)：
+- 某品牌在欧美/南美的建厂或工会罢工
+- 欧美针对中国电动车的关税与贸易摩擦
+- 纯粹的公司高管家常或花边新闻
+
+如果新闻与中东汽车市场高度相关（如新车引入、当地定价策略、区域政策、售后网络、当地销量），请严格按照以下 JSON 格式返回分析结果（必须是合法的 JSON，不要返回 markdown 标记）：
+
 {
   "relevant": true,
-  "brand": "品牌名（中英文均可，如 Changan 长安 / BYD 比亚迪 / Toyota 丰田 / 其他品牌），若无法确定填 其他品牌",
-  "type": "以下之一: launch | sales | price | channel | corp | policy | tech | other",
-  "summary": "用中文写 50 字以内的摘要，说明这条新闻的核心内容及对长安销售的意义",
-  "tags": ["关键词1", "关键词2"]
+  "brand": "必须从预设列表中选择最接近的一个。预设列表：['Changan 长安', 'BYD 比亚迪', 'Geely 吉利', 'Jetour 捷途', 'Chery 奇瑞', 'GWM 长城', 'Toyota 丰田', 'Nissan 日产', 'Hyundai 现代', 'Kia 起亚', 'Ford 福特', 'Lexus 雷克萨斯', '政策相关', 'Other 其他品牌']。如果提到子品牌（如欧萌达、星途，请映射为 Chery 奇瑞；极氪映射为 Geely 吉利）。",
+  "type": "必须严格是以下枚举值之一：'Launch (Physical)' | 'Tech & OTA' | 'Market & Sales' | 'Policy' | 'Network & Service' | 'Competitor Tactics' | 'Corp Strategy' | 'Other'",
+  "summary": "采用'So What'分析法，用一两句话总结，格式必须为：[事实描述] + [对长安或阿联酋市场的直接业务影响]。语言必须客观商业化，禁止使用浮夸词汇（如：惨烈作战等）。",
+  "tags": ["提取1-2个核心业务关键词，如 '价格战', '纯电引入', '旗舰降价'"]
 }
 
-如果不相关，返回：{"relevant": false}`;
+如果新闻与中东市场无关，直接返回：{"relevant": false}`;
 
     try {
         const res = await fetch('/api/analyze', {
@@ -64,23 +71,16 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
         const parsed = JSON.parse(jsonMatch[0]);
         if (!parsed.relevant) return null;
 
-        // 映射 type 字符串到 NewsType enum
-        const typeMap: Record<string, NewsType> = {
-            launch: NewsType.LAUNCH_PHYSICAL,
-            sales: NewsType.MARKET_SALES,
-            price: NewsType.COMPETITOR_TACTICS,
-            channel: NewsType.NETWORK_SERVICE,
-            corp: NewsType.CORP_STRATEGY,
-            policy: NewsType.POLICY,
-            tech: NewsType.TECH_OTA,
-            other: NewsType.OTHER,
-        };
+        // 验证 Qwen 返回的 type 是否是合法的 NewsType 枚举值，否则兜底为 Other
+        const parsedType = Object.values(NewsType).includes(parsed.type as NewsType)
+            ? (parsed.type as NewsType)
+            : NewsType.OTHER;
 
         return {
             id: uid(),
-            brand: parsed.brand || '其他品牌',
+            brand: parsed.brand || 'Other 其他品牌',
             date: item.date,
-            type: typeMap[parsed.type] || NewsType.OTHER,
+            type: parsedType,
             title: item.title,
             summary: parsed.summary || item.snippet,
             tags: parsed.tags || [],

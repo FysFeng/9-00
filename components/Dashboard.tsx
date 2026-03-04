@@ -8,7 +8,7 @@ const Dashboard: React.FC = () => {
     const { rawIntelligence, filters, customBrands, salesViewMode, focusedBrand } = useIntelligenceStore();
 
     const [radarBrandA, setRadarBrandA] = useState(focusedBrand);
-    const [radarBrandB, setRadarBrandB] = useState('BYD 比亚迪');
+    const [radarBrandB, setRadarBrandB] = useState('Chery 奇瑞');
 
     const visibleBrands = useMemo(() => {
         return filters.selectedBrands.length > 0 ? filters.selectedBrands : customBrands;
@@ -37,12 +37,9 @@ const Dashboard: React.FC = () => {
     const heatmapDates = useMemo(() => Array.from(new Set(heatmapData.map(d => d.date))).sort(), [heatmapData]);
 
     const brandCards = useMemo(() => {
-        const counts = visibleBrands.map(b => ({
-            name: b,
-            count: filteredGlobalNews.filter(n => n.brand === b).length
-        }));
-        return counts.sort((a, b) => b.count - a.count).slice(0, 6).map(b => getBrandProfile(b.name, filteredGlobalNews));
-    }, [visibleBrands, filteredGlobalNews]);
+        const coreFocusBrands = ["Changan 长安", "Chery 奇瑞", "Geely 吉利", "Jetour 捷途"];
+        return coreFocusBrands.map(b => getBrandProfile(b, filteredGlobalNews));
+    }, [filteredGlobalNews]);
 
     // Latest news (sorted by date desc)
     const latestNews = useMemo(() =>
@@ -148,12 +145,12 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* === 2. SPLIT VIEW: RADAR + BATTLE CARDS === */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
+            {/* === 2. MIDDLE ROW: COMP RADAR & BATTLE CARDS === */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* LEFT: RADAR */}
-                <div className="xl:col-span-5 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col min-h-[500px]">
-                    <SectionHeader title="品牌对比分析" subtitle="多维度评分对比" />
+                {/* Left: Radar */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <SectionHeader title="品牌对比分析" subtitle="多维度攻防重叠度" />
                     <CompetitorRadar
                         brandA={radarBrandA}
                         brandB={radarBrandB}
@@ -164,51 +161,49 @@ const Dashboard: React.FC = () => {
                     />
                 </div>
 
-                {/* RIGHT: BRAND CARDS */}
-                <div className="xl:col-span-7 bg-white p-6 rounded-xl shadow-sm border border-slate-200 min-h-[500px] flex flex-col">
-                    <SectionHeader title="品牌快照" subtitle="状态与关键信号" />
-                    <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
-                            {brandCards.map(card => {
-                                const isChangan = card.brand.includes("Changan");
-                                return (
-                                    <div key={card.brand} className={`p-5 rounded-xl border transition-all duration-200 ${isChangan ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md'}`}>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <h4 className={`font-black text-base truncate pr-2 ${isChangan ? 'text-blue-900' : 'text-slate-800'}`}>{card.brand}</h4>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${card.statusColor}`}>
-                                                {card.statusLabel}
-                                            </span>
-                                        </div>
+                {/* Right: Battle Cards */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <SectionHeader title="核心品牌快照" subtitle="四大关键出海品牌活跃度" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        {brandCards.map((card, idx) => {
+                            const isChangan = card.brand.includes("Changan");
+                            return (
+                                <div key={card.brand} className={`p-5 rounded-xl border transition-all duration-200 ${isChangan ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-md'}`}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h4 className={`font-black text-base truncate pr-2 ${isChangan ? 'text-blue-900' : 'text-slate-800'}`}>{card.brand}</h4>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${card.statusColor}`}>
+                                            {card.statusLabel}
+                                        </span>
+                                    </div>
 
-                                        <div className="flex gap-6 mb-4 pb-4 border-b border-slate-100/80">
-                                            <div>
-                                                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">资讯数量</div>
-                                                <div className="text-2xl font-black text-slate-700 tracking-tight">{card.totalNews}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">新品/促销占比</div>
-                                                <div className="text-2xl font-black text-slate-700 tracking-tight">{(card.launchRatio * 100).toFixed(0)}<span className="text-sm text-slate-400 font-bold ml-0.5">%</span></div>
-                                            </div>
-                                        </div>
-
+                                    <div className="flex gap-6 mb-4 pb-4 border-b border-slate-100/80">
                                         <div>
-                                            <div className="text-[10px] text-slate-400 uppercase font-bold mb-2">近期关键词</div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {card.topKeywords.length > 0 ? (
-                                                    card.topKeywords.map(k => (
-                                                        <span key={k} className="text-[10px] bg-slate-100/80 border border-slate-200 text-slate-600 px-2 py-0.5 rounded font-medium">
-                                                            #{k}
-                                                        </span>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-[11px] text-slate-300 italic font-medium">近期无明显动作</span>
-                                                )}
-                                            </div>
+                                            <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">资讯数量</div>
+                                            <div className="text-2xl font-black text-slate-700 tracking-tight">{card.totalNews}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">新品/促销占比</div>
+                                            <div className="text-2xl font-black text-slate-700 tracking-tight">{(card.launchRatio * 100).toFixed(0)}<span className="text-sm text-slate-400 font-bold ml-0.5">%</span></div>
                                         </div>
                                     </div>
-                                )
-                            })}
-                        </div>
+
+                                    <div>
+                                        <div className="text-[10px] text-slate-400 uppercase font-bold mb-2">近期关键词</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {card.topKeywords.length > 0 ? (
+                                                card.topKeywords.map(k => (
+                                                    <span key={k} className="text-[10px] bg-slate-100/80 border border-slate-200 text-slate-600 px-2 py-0.5 rounded font-medium">
+                                                        #{k}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-[11px] text-slate-300 italic font-medium">近期无明显动作</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
 

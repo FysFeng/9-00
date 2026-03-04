@@ -11,14 +11,10 @@ export const DEFAULT_BRANDS = [
   // 中国出海品牌
   "Changan 长安",
   "BYD 比亚迪",
-  "MG 名爵",
-  "Jetour 捷途",
   "Geely 吉利",
-  "GWM 长城",
-  "HAVAL 哈弗",
+  "Jetour 捷途",
   "Chery 奇瑞",
-  "GAC AION 广汽埃安",
-  "Deepal 深蓝",
+  "GWM 长城",
   // 其他
   "政策相关",
   "Other 其他品牌",
