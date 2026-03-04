@@ -110,15 +110,13 @@ export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyP
 
 // --- 3. Radar Data Helper ---
 export const getRadarData = (brandA: string, brandB: string, news: NewsItem[]) => {
+    // Labels must match DIMENSION_INFO keys in CompetitorRadar.tsx
     const categories = [
         { key: NewsType.LAUNCH_PHYSICAL, label: '新车发布' },
-        { key: NewsType.MARKET_SALES, label: '市场销量' },
-        { key: NewsType.POLICY, label: '政策法规' },
-        { key: NewsType.COMPETITOR_TACTICS, label: '价格战术' },
-        { key: NewsType.NETWORK_SERVICE, label: '渠道服务' }, // Typo handling if needed, usually NETWORK_SERVICE
-        { key: NewsType.CORP_STRATEGY, label: '企业战略' },
-        // Tech can be merged or added based on space
-        { key: NewsType.TECH_OTA, label: '技术研发' }
+        { key: NewsType.MARKET_SALES, label: '销量数据' },
+        { key: NewsType.COMPETITOR_TACTICS, label: '价格/促销' },
+        { key: NewsType.NETWORK_SERVICE, label: '售后/渠道' },
+        { key: NewsType.CORP_STRATEGY, label: '企业动态' },
     ];
 
     return categories.map(cat => {

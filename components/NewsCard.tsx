@@ -38,6 +38,26 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
   const typeStyle = getTypeColor(item.type);
   const dotColor = getTypeDotColor(item.type);
 
+  // --- Changan Specific Logic ---
+  const isChangan = item.brand.includes("Changan") || item.brand.includes("长安");
+  const isCompetitor = !isChangan && item.brand !== "政策相关" && item.brand !== "Other 其他品牌";
+
+  let highlightBorder = "border-slate-100";
+  let highlightBg = "bg-white";
+
+  if (isChangan) {
+    if (item.sentiment === 'positive') {
+      highlightBorder = "border-green-300 shadow-green-100";
+      highlightBg = "bg-green-50/30";
+    } else if (item.sentiment === 'negative') {
+      highlightBorder = "border-red-400 shadow-red-100";
+    } else {
+      highlightBorder = "border-blue-200";
+    }
+  } else if (isCompetitor && (item.type === NewsType.LAUNCH_PHYSICAL || item.sentiment === 'positive' || item.type === NewsType.COMPETITOR_TACTICS)) {
+    highlightBorder = "border-orange-200 shadow-orange-50";
+  }
+
   return (
     <div className="group relative pl-8 pb-12 last:pb-0">
       {/* Timeline Line */}
@@ -47,7 +67,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
       <div className={`absolute left-0 top-6 w-6 h-6 rounded-full border-4 border-white shadow-sm z-10 ${dotColor}`}></div>
 
       {/* Card Content */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 hover:shadow-lg transition-all duration-300 flex flex-col md:flex-row gap-6">
+      <div className={`rounded-xl shadow-sm border p-5 hover:shadow-lg transition-all duration-300 flex flex-col md:flex-row gap-6 ${highlightBorder} ${highlightBg}`}>
 
         {/* Image */}
         <div className="w-full md:w-48 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 relative group-hover:shadow-md transition-shadow">
@@ -65,7 +85,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onDelete }) => {
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider">
+              <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${isChangan ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
                 {item.brand}
               </span>
               <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${typeStyle}`}>

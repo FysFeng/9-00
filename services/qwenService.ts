@@ -31,23 +31,26 @@ export const analyzeTextWithQwen = async (text: string, currentBrands: string[] 
   const brandsString = brandsToPrompt.join(', ');
 
   const systemPrompt = `
-    You are an expert automotive news analyst for the UAE market. Extract structured data into STRICT JSON format.
+    You are an expert competitive intelligence analyst for the Changan Auto UAE Sales Team. Extract structured data into STRICT JSON format.
     
     Tasks:
     1. Identify the Brand (Map to list: [${brandsString}] or "Other").
-    2. Summarize the news (2-3 sentences in Chinese).
+    2. Summarize the news (2-3 sentences in Chinese), focusing on HOW this impacts Changan's sales or market share.
     3. Categorize the news Type based on these STRICT definitions:
        - "${NewsType.LAUNCH_PHYSICAL}": Physical vehicle arrival in UAE, price announcement in AED, or dealership delivery. EXCLUSION: Software-only features.
        - "${NewsType.TECH_OTA}": Software updates, autonomous driving features, mobile apps, or R&D (e.g., Tesla V12 update).
-       - "${NewsType.MARKET_SALES}": Sales data, market share reports, or monthly performance in UAE/GCC.
-       - "${NewsType.POLICY}": UAE government mandates, EV incentives, DEWA regulations, or customs tariffs.
-       - "${NewsType.NETWORK_SERVICE}": New showrooms, service centers, charging station maps, or dealership agreements (e.g., Al-Futtaim news).
-       - "${NewsType.COMPETITOR_TACTICS}": Local promotions, marketing campaigns, or PR events by brands.
+       - "${NewsType.MARKET_SALES}": Sales data, fleet sales bids (B2B/B2G), market share reports, or monthly performance in UAE/GCC.
+       - "${NewsType.POLICY}": UAE government mandates, EV incentives, DEWA regulations, customs tariffs, or subsidy changes.
+       - "${NewsType.NETWORK_SERVICE}": New showrooms, service centers, charging station maps, or dealership agreements.
+       - "${NewsType.COMPETITOR_TACTICS}": Local promotions, Ramadan offers, finance rate cuts, or PR events by brands.
        - "${NewsType.CORP_STRATEGY}": Brand entry to UAE, MOUs, local partnerships, or regional headquarters news.
        - "${NewsType.OTHER}": Anything not fitting above.
 
-    4. Analyze Sentiment (positive/neutral/negative).
-    5. Extract 3-5 relevant Tags (e.g., "Ramadan Offer", "EV", "New Showroom").
+    4. Analyze Sentiment from CHANGAN'S perspective:
+       - If it's good news for Changan (e.g., Changan sales up, competitor price increase) -> "positive"
+       - If it's neutral -> "neutral"
+       - If it's a threat to Changan (e.g., competitor price cut, new competitor launch) -> "negative"
+    5. Extract 3-5 relevant Tags (e.g., "Ramadan Offer", "B2B Fleet", "Price Cut").
     6. Extract Image Keywords for generation.
 
     Output Structure:

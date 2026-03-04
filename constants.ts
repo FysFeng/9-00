@@ -1,23 +1,29 @@
 import { NewsType, NewsItem } from './types';
 
 export const DEFAULT_BRANDS = [
+  // 日韩传统品牌
   "Toyota 丰田",
   "Hyundai 现代",
   "Kia 起亚",
   "Nissan 日产",
   "Lexus 雷克萨斯",
   "Ford 福特",
-  "Jetour 捷途",
-  "MG 名爵",
-  "Geely 吉利",
+  // 中国出海品牌
   "Changan 长安",
-  "GWM 长城",
   "BYD 比亚迪",
-  "ICAUR 奇瑞",
-  "GAC 广汽",
+  "MG 名爵",
+  "Jetour 捷途",
+  "Geely 吉利",
+  "GWM 长城",
+  "HAVAL 哈弗",
+  "Chery 奇瑞",
+  "GAC AION 广汽埃安",
+  "Deepal 深蓝",
+  // 其他
   "政策相关",
   "Other 其他品牌",
 ];
+
 
 export const NEWS_TYPES_LIST = [
   NewsType.LAUNCH_PHYSICAL,
@@ -31,13 +37,13 @@ export const NEWS_TYPES_LIST = [
 ];
 
 export const NEWS_TYPE_LABELS: Record<NewsType, string> = {
-  [NewsType.LAUNCH_PHYSICAL]: "新车上市 (硬件)",
-  [NewsType.TECH_OTA]: "技术与OTA",
-  [NewsType.MARKET_SALES]: "市场销量",
-  [NewsType.POLICY]: "政策法规",
-  [NewsType.NETWORK_SERVICE]: "渠道服务",
-  [NewsType.COMPETITOR_TACTICS]: "竞品战术",
-  [NewsType.CORP_STRATEGY]: "企业战略",
+  [NewsType.LAUNCH_PHYSICAL]: "新车发布",
+  [NewsType.TECH_OTA]: "技术/配置",
+  [NewsType.MARKET_SALES]: "销量数据",
+  [NewsType.POLICY]: "政策/监管",
+  [NewsType.NETWORK_SERVICE]: "售后/渠道",
+  [NewsType.COMPETITOR_TACTICS]: "价格/促销",
+  [NewsType.CORP_STRATEGY]: "企业动态",
   [NewsType.OTHER]: "其他"
 };
 
@@ -85,6 +91,34 @@ export const INITIAL_NEWS: NewsItem[] = [
     type: NewsType.NETWORK_SERVICE,
     sentiment: "positive",
     tags: ["售后", "质保", "用户关怀"]
+  },
+
+  // --- CHANGAN: The Focus Brand ---
+  {
+    id: uuid(),
+    title: "长安启源 E07 纯电跨界 SUV 有望年底引入阿联酋市场",
+    summary: "这款聚焦科技与多功能的创新车型将填补长安全球战略中高端智能新能源产品线的空白。",
+    original_text: "",
+    url: "https://example.com/changan-e07",
+    source: "Gulf Auto News",
+    date: d(-0),
+    brand: "Changan 长安",
+    type: NewsType.LAUNCH_PHYSICAL,
+    sentiment: "positive",
+    tags: ["新车预热", "纯电", "启源E07"]
+  },
+  {
+    id: uuid(),
+    title: "阿联酋市场第三季度中国品牌销量榜，长安稳居前三",
+    summary: "长安 UNI 系列的持续热销以及 CS 系列的稳定发力，帮助长安稳固了其在中东市场的基本盘。",
+    original_text: "",
+    url: "https://example.com/changan-sales-q3",
+    source: "Middle East Business",
+    date: d(-3),
+    brand: "Changan 长安",
+    type: NewsType.MARKET_SALES,
+    sentiment: "positive",
+    tags: ["销量分析", "UNI系列", "市场表现"]
   },
 
   // --- BYD: The Challenger (Aggressive Expansion) ---

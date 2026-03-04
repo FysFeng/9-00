@@ -74,7 +74,69 @@ export default defineConfig(({ mode }) => {
               next();
             }
           });
+
+          // 模拟 /api/push 本地代理
+          server.middlewares.use('/api/push', async (req, res, next) => {
+            if (req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk.toString(); });
+              req.on('end', async () => {
+                try {
+                  const { digest, webhookUrl, type = 'wechat' } = JSON.parse(body);
+                  if (!digest || !webhookUrl) {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: '请提供简报内容和 Webhook URL' }));
+                    return;
+                  }
+
+                  let payload;
+                  if (type === 'wechat') {
+                    payload = { msgtype: 'markdown', markdown: { content: digest } };
+                  } else if (type === 'dingtalk') {
+                    payload = { msgtype: 'markdown', markdown: { title: '今日市场简报', text: digest } };
+                  } else if (type === 'lark') {
+                    payload = { msg_type: 'interactive', card: { config: { wide_screen_mode: true }, elements: [{ tag: 'markdown', content: digest }] } };
+                  } else {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: '不支持的 Webhook 类型' }));
+                    return;
+                  }
+
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                  const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                  });
+                  clearTimeout(timeoutId);
+
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok || (data.errcode && data.errcode !== 0)) {
+                    throw new Error(data.errmsg || 'Webhook 推送失败');
+                  }
+
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: true, message: '推送成功' }));
+                } catch (error) {
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  // @ts-ignore
+                  const msg = error.name === 'AbortError' ? "Local Proxy Push Timeout" : (error as Error).message;
+                  res.end(JSON.stringify({ error: msg }));
+                }
+              });
+            } else {
+              next();
+            }
+          });
         }
+
       }
     ],
     build: {
