@@ -78,7 +78,7 @@ const Dashboard: React.FC = () => {
     };
 
     return (
-        <div className="p-6 lg:p-10 min-h-full bg-slate-50 space-y-6 flex flex-col animate-fadeIn">
+        <div className="p-6 lg:p-8 w-full max-w-full bg-slate-50 space-y-6 animate-fadeIn overflow-x-hidden">
 
             {/* Header */}
             <div className="flex justify-between items-end pb-4 border-b border-slate-200/60">

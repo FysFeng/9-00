@@ -91,70 +91,165 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                 </div>
             )}
 
-            {digest && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6">
-                    <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-800">简报内容</h3>
-                        <button
-                            onClick={() => navigator.clipboard.writeText(digest)}
-                            className="text-xs text-slate-400 hover:text-slate-600 border border-slate-200 px-2 py-1 rounded hover:bg-slate-50 transition-colors"
-                        >
-                            复制
-                        </button>
-                    </div>
-                    <div className="prose prose-sm max-w-none">
-                        {digest.split('\n').map((line, i) => {
-                            if (line.startsWith('## ')) return <h2 key={i} className="text-base font-bold text-slate-800 mt-0 mb-3">{line.replace('## ', '')}</h2>;
-                            if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-bold text-slate-700 mt-3 mb-1">{line.replace(/\*\*/g, '')}</p>;
-                            if (line === '---') return <hr key={i} className="border-slate-200 my-3" />;
-                            if (line.trim() === '') return <div key={i} className="h-1" />;
-                            return <p key={i} className="text-sm text-slate-600 leading-relaxed my-1">{line}</p>;
-                        })}
-                    </div>
+            {digest && (() => {
+                // Parse digest into sections by ### heading
+                const lines = digest.split('\n');
+                const headerLines: string[] = [];
+                const sections: { heading: string; icon: string; lines: string[] }[] = [];
+                let current: { heading: string; icon: string; lines: string[] } | null = null;
+                let footerLines: string[] = [];
+                let inFooter = false;
 
-                    {/* Webhook 推送设置 */}
-                    <div className="mt-8 pt-6 border-t border-slate-100 bg-slate-50/50 -mx-6 px-6 pb-2 rounded-b-xl">
-                        <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                            <span>🚀</span> 推送至群聊
-                        </h4>
-                        <div className="flex flex-col gap-3">
+                for (const line of lines) {
+                    if (line.startsWith('### ')) {
+                        if (current) sections.push(current);
+                        const heading = line.replace('### ', '');
+                        // Extract leading emoji if present
+                        const iconMatch = heading.match(/^(\p{Emoji}[\uFE0F\u20E3\uFE0F]?\s*)/u);
+                        const icon = iconMatch ? iconMatch[1].trim() : '▸';
+                        current = { heading, icon, lines: [] };
+                        inFooter = false;
+                    } else if (line.startsWith('**📌')) {
+                        if (current) { sections.push(current); current = null; }
+                        inFooter = true;
+                        footerLines.push(line);
+                    } else if (inFooter) {
+                        footerLines.push(line);
+                    } else if (current) {
+                        current.lines.push(line);
+                    } else {
+                        headerLines.push(line);
+                    }
+                }
+                if (current) sections.push(current);
+
+                // Color palette: cycles through section types
+                const SECTION_COLORS = [
+                    { border: 'border-blue-500', bg: 'bg-blue-50', head: 'text-blue-800', pill: 'bg-blue-100 text-blue-700' },
+                    { border: 'border-cyan-500', bg: 'bg-cyan-50', head: 'text-cyan-800', pill: 'bg-cyan-100 text-cyan-700' },
+                    { border: 'border-emerald-500', bg: 'bg-emerald-50', head: 'text-emerald-800', pill: 'bg-emerald-100 text-emerald-700' },
+                    { border: 'border-rose-500', bg: 'bg-rose-50', head: 'text-rose-800', pill: 'bg-rose-100 text-rose-700' },
+                    { border: 'border-indigo-500', bg: 'bg-indigo-50', head: 'text-indigo-800', pill: 'bg-indigo-100 text-indigo-700' },
+                    { border: 'border-fuchsia-500', bg: 'bg-fuchsia-50', head: 'text-fuchsia-800', pill: 'bg-fuchsia-100 text-fuchsia-700' },
+                    { border: 'border-amber-500', bg: 'bg-amber-50', head: 'text-amber-800', pill: 'bg-amber-100 text-amber-700' },
+                    { border: 'border-slate-400', bg: 'bg-slate-50', head: 'text-slate-700', pill: 'bg-slate-100 text-slate-600' },
+                ];
+
+                // Extract date range from header
+                const dateMatch = headerLines.join('\n').match(/情报覆盖时间[：:]\s*(.+)/);
+                const dateRange = dateMatch ? dateMatch[1].trim() : new Date().toISOString().split('T')[0];
+
+                return (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm animate-fadeIn">
+                        {/* Dark Header — matches weekly report */}
+                        <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between border-b-4 border-red-600">
                             <div className="flex items-center gap-3">
-                                <select
-                                    className="bg-white border border-slate-200 text-slate-700 text-sm rounded-md px-3 py-2 outline-none w-32 shrink-0"
-                                    value={webhookType}
-                                    onChange={e => setWebhookType(e.target.value)}
-                                >
-                                    <option value="wechat">企业微信</option>
-                                    <option value="dingtalk">钉钉</option>
-                                    <option value="lark">飞书</option>
-                                </select>
-                                <input
-                                    type="text"
-                                    placeholder="填入群机器人 Webhook URL (https://qyapi.weixin.qq.com/...)"
-                                    className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-blue-400"
-                                    value={webhookUrl}
-                                    onChange={e => setWebhookUrl(e.target.value)}
-                                />
-                                <button
-                                    onClick={handlePush}
-                                    disabled={pushState === 'pushing'}
-                                    className="shrink-0 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white px-4 py-2 rounded-md text-sm font-bold transition-colors"
-                                >
-                                    {pushState === 'pushing' ? '发送中...' : '一键推送'}
-                                </button>
+                                <div className="w-8 h-8 bg-red-600 rounded-md flex items-center justify-center shadow-md">
+                                    <span className="text-[10px] font-black">UAE</span>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold tracking-tight">中东大区市场简报</div>
+                                    <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Daily Intelligence Report</div>
+                                </div>
                             </div>
+                            <div className="flex items-center gap-2">
+                                <div className="text-right mr-1">
+                                    <div className="text-[9px] text-slate-400 uppercase tracking-wider">Coverage</div>
+                                    <div className="text-xs font-mono text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700 mt-0.5">{dateRange}</div>
+                                </div>
+                                <button
+                                    onClick={() => navigator.clipboard.writeText(digest)}
+                                    className="text-[10px] text-slate-400 hover:text-white border border-slate-600 hover:border-slate-400 px-2 py-1 rounded transition-colors"
+                                >复制原文</button>
+                            </div>
+                        </div>
 
-                            {/* 推送状态提示 */}
-                            {pushState === 'success' && <p className="text-xs text-emerald-600 font-semibold">{pushMessage}</p>}
-                            {pushState === 'error' && <p className="text-xs text-red-600 font-semibold">{pushMessage}</p>}
+                        {/* Sections */}
+                        <div className="bg-slate-50 p-4 space-y-3">
+                            {sections.map((sec, idx) => {
+                                const col = SECTION_COLORS[idx % SECTION_COLORS.length];
+                                const bulletLines = sec.lines.filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().startsWith('*'));
+                                const otherLines = sec.lines.filter(l => l.trim() && !l.trim().startsWith('-') && !l.trim().startsWith('•') && !l.trim().startsWith('*'));
+                                return (
+                                    <div key={idx} className={`bg-white rounded-lg border-l-4 ${col.border} border border-l-[4px] border-slate-200 overflow-hidden`}>
+                                        <div className={`${col.bg} px-4 py-2 flex items-center gap-2 border-b border-slate-100`}>
+                                            <span className={`text-xs font-black uppercase tracking-wider ${col.head}`}>{sec.heading}</span>
+                                        </div>
+                                        <ul className="px-4 py-3 space-y-1.5">
+                                            {bulletLines.map((l, li) => (
+                                                <li key={li} className="flex gap-2 text-sm text-slate-700 leading-relaxed">
+                                                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${col.border.replace('border-', 'bg-')}`} />
+                                                    <span>{l.replace(/^[-•*]\s*/, '').replace(/\*\*/g, '')}</span>
+                                                </li>
+                                            ))}
+                                            {otherLines.map((l, li) => (
+                                                <li key={`o${li}`} className="text-sm text-slate-500 leading-relaxed italic pl-3">{l.replace(/\*\*/g, '')}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                );
+                            })}
 
-                            <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
-                                * 提示：在企业微信群中右键或设置中添加「群机器人」，复制 Webhook 链接填入即可。免费且不限量。此操作直接调用外网接口，确保您的网络可访问相关地址。
-                            </p>
+                            {/* Executive Action footer */}
+                            {footerLines.length > 0 && (
+                                <div className="bg-[#0f172a] text-white rounded-lg p-4">
+                                    {footerLines.map((l, i) => {
+                                        const clean = l.replace(/\*\*/g, '');
+                                        if (l.startsWith('**📌')) return <p key={i} className="font-bold text-amber-400 text-sm mb-2">{clean}</p>;
+                                        if (l.trim().startsWith('-')) return <p key={i} className="text-sm text-slate-300 leading-relaxed">&bull; {l.replace(/^-\s*/, '')}</p>;
+                                        if (l.trim()) return <p key={i} className="text-sm text-slate-300 leading-relaxed">{clean}</p>;
+                                        return null;
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer bar */}
+                        <div className="bg-slate-100 px-4 py-2 border-t border-slate-200 flex justify-between items-center">
+                            <span className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">Generated by UAE Auto Insight · Confidential</span>
+                        </div>
+
+                        {/* Webhook push panel */}
+                        <div className="bg-white px-6 py-4 border-t border-slate-200">
+                            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                                <span>🚀</span> 推送至群聊
+                            </h4>
+                            <div className="flex flex-col gap-3">
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        className="bg-white border border-slate-200 text-slate-700 text-sm rounded-md px-3 py-2 outline-none w-32 shrink-0"
+                                        value={webhookType}
+                                        onChange={e => setWebhookType(e.target.value)}
+                                    >
+                                        <option value="wechat">企业微信</option>
+                                        <option value="dingtalk">钉钉</option>
+                                        <option value="lark">飞书</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        placeholder="填入群机器人 Webhook URL"
+                                        className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-blue-400"
+                                        value={webhookUrl}
+                                        onChange={e => setWebhookUrl(e.target.value)}
+                                    />
+                                    <button
+                                        onClick={handlePush}
+                                        disabled={pushState === 'pushing'}
+                                        className="shrink-0 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white px-4 py-2 rounded-md text-sm font-bold transition-colors"
+                                    >
+                                        {pushState === 'pushing' ? '发送中...' : '一键推送'}
+                                    </button>
+                                </div>
+                                {pushState === 'success' && <p className="text-xs text-emerald-600 font-semibold">{pushMessage}</p>}
+                                {pushState === 'error' && <p className="text-xs text-red-600 font-semibold">{pushMessage}</p>}
+                                <p className="text-[11px] text-slate-400 leading-relaxed">
+                                    * 在企业微信群设置中添加「群机器人」，复制 Webhook 链接填入即可。
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 }
