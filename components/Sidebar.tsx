@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useIntelligenceStore, SalesViewMode } from '../src/store/useIntelligenceStore';
 import { NewsType } from '../types';
 import { NEWS_TYPES_LIST, NEWS_TYPE_LABELS } from '../constants';
+import WeeklyReportModal from './WeeklyReportModal';
 
 const Sidebar = () => {
   const {
@@ -11,10 +12,12 @@ const Sidebar = () => {
     customBrands,
     updateBrands,
     salesViewMode,
-    setSalesViewMode
+    setSalesViewMode,
+    rawIntelligence
   } = useIntelligenceStore();
 
   const [isEditingBrands, setIsEditingBrands] = useState(false);
+  const [isWeeklyReportOpen, setIsWeeklyReportOpen] = useState(false);
   const location = useLocation();
 
   // Navigation Logic
@@ -237,8 +240,17 @@ const Sidebar = () => {
 
       </div>
 
-      {/* 4. Workbench Entry */}
-      <div className="p-4 border-t border-slate-200 bg-slate-50">
+      {/* 4. Tools & Actions */}
+      <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-2">
+        <button
+          onClick={() => setIsWeeklyReportOpen(true)}
+          className="w-full py-2.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:text-slate-900 hover:border-slate-400 hover:bg-white transition-all flex items-center justify-center gap-2 group shadow-sm bg-slate-100"
+        >
+          <span className="group-hover:scale-110 transition-transform">📊</span>
+          生成系统周报
+          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 ml-1 font-semibold">Poster</span>
+        </button>
+
         <NavLink
           to="/workbench"
           className={({ isActive }) => `w-full py-3 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-2 group ${isActive
@@ -247,10 +259,18 @@ const Sidebar = () => {
             }`}
         >
           <span className="group-hover:rotate-90 transition-transform">⚙️</span>
-          添加资讯
+          添加/管理资讯
           <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded border border-slate-300 ml-1">Admin</span>
         </NavLink>
       </div>
+
+      {isWeeklyReportOpen && (
+        <WeeklyReportModal
+          isOpen={isWeeklyReportOpen}
+          onClose={() => setIsWeeklyReportOpen(false)}
+          allNews={rawIntelligence}
+        />
+      )}
     </aside>
   );
 };

@@ -26,7 +26,18 @@ function DigestTab({ items }: { items: NewsItem[] }) {
         setLoading(true);
         setError('');
         try {
-            const result = await generateDailyDigest(items);
+            // 只取最近一天的资讯（今天或昨天，基于当前最新一条资讯的日期）
+            const sortedItems = [...items].sort((a, b) => b.date.localeCompare(a.date));
+            if (sortedItems.length === 0) throw new Error("无数据");
+            const latestDateStr = sortedItems[0].date;
+
+            // 过滤出与最新数据同一天（或前一天）的数据，避免一次性把几百条全塞给 AI
+            const recentItems = sortedItems.filter(item => {
+                const diff = new Date(latestDateStr).getTime() - new Date(item.date).getTime();
+                return diff <= 24 * 60 * 60 * 1000;
+            });
+
+            const result = await generateDailyDigest(recentItems);
             setDigest(result);
         } catch (e: any) {
             setError(e.message || '生成失败，请稍后重试');

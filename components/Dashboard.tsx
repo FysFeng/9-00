@@ -150,7 +150,7 @@ const Dashboard: React.FC = () => {
 
                 {/* Left: Radar */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                    <SectionHeader title="品牌对比分析" subtitle="多维度攻防重叠度" />
+                    <SectionHeader title="品牌对比分析" />
                     <CompetitorRadar
                         brandA={radarBrandA}
                         brandB={radarBrandB}
@@ -162,9 +162,9 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Right: Battle Cards */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
                     <SectionHeader title="核心品牌快照" subtitle="四大关键出海品牌活跃度" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2 flex-1">
                         {brandCards.map((card, idx) => {
                             const isChangan = card.brand.includes("Changan");
                             return (
