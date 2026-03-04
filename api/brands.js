@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
-      
+
       if (!response.ok) throw new Error("Failed to fetch brands blob");
 
       const data = await response.json();
@@ -39,13 +39,13 @@ export default async function handler(req, res) {
       if (typeof payload === 'string') {
         try { payload = JSON.parse(payload); } catch (e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
-      
+
       // FIX: Apply allowOverwrite: true here as well
       await put('brands.json', JSON.stringify(payload, null, 2), {
         access: 'public',
         token,
         addRandomSuffix: false,
-        allowOverwrite: true, 
+        allowOverwrite: true,
         contentType: 'application/json',
         cacheControlMaxAge: 0
       });

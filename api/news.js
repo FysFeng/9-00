@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
-      
+
       if (!response.ok) throw new Error("Failed to fetch blob content");
 
       const data = await response.json();
@@ -40,13 +40,13 @@ export default async function handler(req, res) {
     // --- 处理 POST 请求：保存/覆盖数据 ---
     if (req.method === 'POST') {
       let payload = req.body;
-      
+
       // 兼容字符串或对象格式
       if (typeof payload === 'string') {
         try {
-            payload = JSON.parse(payload);
+          payload = JSON.parse(payload);
         } catch (e) {
-            return res.status(400).json({ error: "Invalid JSON body" });
+          return res.status(400).json({ error: "Invalid JSON body" });
         }
       }
 
@@ -60,10 +60,10 @@ export default async function handler(req, res) {
         cacheControlMaxAge: 0   // 确保存储层不产生长缓存
       });
 
-      return res.status(200).json({ 
-        success: true, 
+      return res.status(200).json({
+        success: true,
         url: blob.url,
-        updatedAt: new Date().toISOString() 
+        updatedAt: new Date().toISOString()
       });
     }
 

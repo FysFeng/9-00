@@ -145,10 +145,24 @@ export default defineConfig(({ mode }) => {
         external: ['html2canvas'],
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom', 'recharts'],
-          },
-        },
-      },
+            vendor: ['react', 'react-dom'],
+            charts: ['recharts'],
+            state: ['zustand']
+          }
+        }
+      }
     },
+    server: {
+      proxy: {
+        '/api/news': {
+          target: 'https://9-00-main.vercel.app',
+          changeOrigin: true,
+        },
+        '/api/brands': {
+          target: 'https://9-00-main.vercel.app',
+          changeOrigin: true,
+        }
+      }
+    }
   };
 });

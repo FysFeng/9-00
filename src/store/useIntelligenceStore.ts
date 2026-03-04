@@ -85,11 +85,27 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
             if (!newsRes.ok) throw new Error("Cloud connection failed");
             const newsData = await newsRes.json();
 
+            // Map old NewsType string values to new NewsType enums for backwards compatibility
+            const mappedNewsData = newsData.map((item: NewsItem) => {
+                let mappedType = item.type;
+                switch (item.type as unknown as string) {
+                    case 'New Car Launch': mappedType = NewsType.LAUNCH_PHYSICAL; break;
+                    case 'Competitor Dynamics': mappedType = NewsType.COMPETITOR_TACTICS; break;
+                    case 'Market Sales': mappedType = NewsType.MARKET_SALES; break;
+                    case 'Policy & Regulation': mappedType = NewsType.POLICY; break;
+                    case 'Tech & OTA': mappedType = NewsType.TECH_OTA; break;
+                    case 'Network & Service': mappedType = NewsType.NETWORK_SERVICE; break;
+                    case 'Corp & Strategy': mappedType = NewsType.CORP_STRATEGY; break;
+                    case 'Other': mappedType = NewsType.OTHER; break;
+                }
+                return { ...item, type: mappedType };
+            });
+
             const brandsRes = await fetch(`/api/brands?_t=${Date.now()}`, { cache: 'no-store' });
             const brandsData = await brandsRes.json();
 
             set({
-                rawIntelligence: newsData.length > 0 ? newsData : INITIAL_NEWS,
+                rawIntelligence: mappedNewsData.length > 0 ? mappedNewsData : INITIAL_NEWS,
                 customBrands: brandsData.length > 0 ? brandsData : DEFAULT_BRANDS,
                 isLoading: false
             });
