@@ -78,10 +78,10 @@ const Dashboard: React.FC = () => {
     };
 
     return (
-        <div className="p-6 lg:p-8 w-full max-w-full bg-slate-50 space-y-6 animate-fadeIn overflow-x-hidden">
+        <div className="p-4 lg:p-6 w-full h-full bg-slate-50 flex flex-col gap-4 animate-fadeIn overflow-hidden">
 
             {/* Header */}
-            <div className="flex justify-between items-end pb-4 border-b border-slate-200/60">
+            <div className="flex justify-between items-end pb-2 border-b border-slate-200/60 shrink-0">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase flex items-center gap-3">
                         市场动态总览
@@ -94,7 +94,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* === 1. HEATMAP === */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 shrink-0">
                 <SectionHeader title="各品牌近期活跃度" subtitle="近28天资讯发布频率" />
 
                 <div className="overflow-x-auto custom-scrollbar pb-2">
@@ -146,10 +146,10 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* === 2. MIDDLE ROW: COMP RADAR & BATTLE CARDS === */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-[1.2] min-h-0">
 
                 {/* Left: Radar */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col h-full min-h-0">
                     <SectionHeader title="品牌对比分析" />
                     <CompetitorRadar
                         brandA={radarBrandA}
@@ -162,9 +162,9 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Right: Battle Cards */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col h-full min-h-0">
                     <SectionHeader title="核心品牌快照" subtitle="四大关键出海品牌活跃度" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-2 flex-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                         {brandCards.map((card, idx) => {
                             const isChangan = card.brand.includes("Changan");
                             return (
@@ -210,9 +210,9 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* === 3. LATEST NEWS === */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0">
                 <SectionHeader title="最新动态" subtitle={`共 ${filteredGlobalNews.length} 条`} />
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 flex-1 overflow-y-auto custom-scrollbar pr-2">
                     {latestNews.map(item => {
                         const isChangan = item.brand.includes("Changan");
                         return (
