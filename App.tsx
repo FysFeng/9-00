@@ -8,7 +8,7 @@ import { useIntelligenceStore } from './src/store/useIntelligenceStore';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-900">
+    <div className="flex h-screen overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       <Sidebar />
       <main className="flex-1 ml-64 h-screen overflow-y-auto relative transition-all">
         {children}

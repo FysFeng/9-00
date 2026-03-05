@@ -114,17 +114,17 @@ export default function CompetitorRadar({
         <div className="flex flex-col h-full">
 
             {/* Brand selectors */}
-            <div className="flex gap-3 mb-4 justify-center bg-slate-50 p-2 rounded-lg border border-slate-100 w-max mx-auto">
+            <div className="flex gap-4 mb-6 justify-center items-center bg-slate-50/50 p-2.5 rounded-xl border border-slate-200/60 w-max mx-auto shadow-sm">
                 <select
-                    className="bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded px-2 py-1.5 outline-none shadow-sm min-w-[120px]"
+                    className="bg-white border-none text-slate-800 text-sm font-black tracking-tight rounded-md px-4 py-2 outline-none shadow-[0_2px_8px_rgb(0,0,0,0.04)] min-w-[140px] cursor-pointer hover:bg-slate-50 transition-colors"
                     value={brandA}
                     onChange={e => onBrandAChange(e.target.value)}
                 >
                     {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
-                <span className="text-slate-300 font-black italic self-center">VS</span>
+                <span className="text-slate-300 font-black text-xs italic tracking-widest px-2">VS</span>
                 <select
-                    className="bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded px-2 py-1.5 outline-none shadow-sm min-w-[120px]"
+                    className="bg-white border-none text-slate-800 text-sm font-black tracking-tight rounded-md px-4 py-2 outline-none shadow-[0_2px_8px_rgb(0,0,0,0.04)] min-w-[140px] cursor-pointer hover:bg-slate-50 transition-colors"
                     value={brandB}
                     onChange={e => onBrandBChange(e.target.value)}
                 >
@@ -133,9 +133,9 @@ export default function CompetitorRadar({
             </div>
 
             {/* Chart — explicit px height avoids Recharts -1 bug when parent is flex */}
-            <div style={{ height: 280, width: '100%' }}>
+            <div style={{ height: 320, width: '100%' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
                         <PolarGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                         <PolarAngleAxis
                             dataKey="subject"
