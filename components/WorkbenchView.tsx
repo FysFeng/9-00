@@ -114,10 +114,8 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                 for (const line of lines) {
                     if (line.startsWith('### ')) {
                         if (current) sections.push(current);
-                        const heading = line.replace('### ', '');
-                        // Extract leading emoji if present
-                        const iconMatch = heading.match(/^(\p{Emoji}[\uFE0F\u20E3\uFE0F]?\s*)/u);
-                        const icon = iconMatch ? iconMatch[1].trim() : '▸';
+                        const heading = line.replace('### ', '').trim();
+                        const icon = '▸';
                         current = { heading, icon, lines: [] };
                         inFooter = false;
                     } else if (line.startsWith('**📌')) {
@@ -147,7 +145,7 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                 ];
 
                 // Extract date range from header
-                const dateMatch = headerLines.join('\n').match(/情报覆盖时间[：:]\s*(.+)/);
+                const dateMatch = headerLines.join('\n').match(/信息覆盖时间[：:]\s*(.+)/);
                 const dateRange = dateMatch ? dateMatch[1].trim() : new Date().toISOString().split('T')[0];
 
                 return (
@@ -159,7 +157,7 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                                     <span className="text-[10px] font-black">UAE</span>
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold tracking-tight">中东大区市场简报</div>
+                                    <div className="text-sm font-bold tracking-tight">阿联酋每日信息简报</div>
                                     <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Daily Intelligence Report</div>
                                 </div>
                             </div>

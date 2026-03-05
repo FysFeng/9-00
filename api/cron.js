@@ -178,20 +178,20 @@ async function generateDigest(items, apiKey) {
         .map(([type, lines]) => `### ${type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `你是中东汽车市场情报整理员。请根据以下已按资讯类型分组的市场情报，生成一份简洁的【中东大区市场简报】。
+    const systemPrompt = `你是中东汽车市场信息整理员。请根据以下已按资讯类型分组的市场信息，生成一份简洁的【阿联酋每日信息简报】。
 
-## 中东大区市场简报
-**情报覆盖时间：${dateRange}**
+## 阿联酋每日信息简报
+**信息覆盖时间：${dateRange}**
 
 对于以下每个有内容的资讯类型，生成一个小节。无内容的类型直接省略：
 
-### 📦 Launch (Physical) · 新车发布
-### ⚡ Tech & OTA · 技术/OTA
-### 📊 Market & Sales · 销量/市场
-### 🏛 Policy · 政策法规
-### 🔧 Network & Service · 渠道/售后
-### 🥊 Competitor Tactics · 竞品战术
-### 🏢 Corp Strategy · 企业战略
+### 新车发布
+### 技术与OTA
+### 销量与市场
+### 政策与法规
+### 渠道与售后
+### 竞品动态
+### 企业动态
 
 【规则】：
 1. 每小节列出 2-4 条新闻事实，每条必须包含品牌名。
