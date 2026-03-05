@@ -1,20 +1,38 @@
 import { NewsType, NewsItem } from './types';
 
 export const DEFAULT_BRANDS = [
-  // 日韩传统品牌
-  "Toyota 丰田",
-  "Hyundai 现代",
-  "Kia 起亚",
-  "Nissan 日产",
-  "Lexus 雷克萨斯",
-  "Ford 福特",
-  // 中国出海品牌
+  // 中国核心出海品牌
   "Changan 长安",
   "BYD 比亚迪",
   "Geely 吉利",
-  "Jetour 捷途",
   "Chery 奇瑞",
   "GWM 长城",
+  "Jetour 捷途",
+  // 更多中国拓展品牌
+  "Changan Deepal 深蓝",
+  "Changan AVATR 阿维塔",
+  "Geely Zeekr 极氪",
+  "Geely Lynk & Co 领克",
+  "BYD DENZA 腾势",
+  "Chery Exeed 星途",
+  "SAIC MG 名爵",
+  "Xpeng 小鹏",
+  "NIO 蔚来",
+  "Li Auto 理想",
+  // 国际主流老牌
+  "Toyota 丰田",
+  "Nissan 日产",
+  "Hyundai 现代",
+  "Kia 起亚",
+  "Ford 福特",
+  "Chevrolet 雪佛兰",
+  "Lexus 雷克萨斯",
+  "Honda 本田",
+  "Volkswagen 大众",
+  "Mercedes-Benz 奔驰",
+  "BMW 宝马",
+  "Audi 奥迪",
+  "Land Rover 路虎",
   // 其他
   "政策相关",
   "Other 其他品牌",

@@ -33,13 +33,17 @@ const Dashboard: React.FC = () => {
         return counts.sort((a, b) => b.count - a.count).slice(0, 5).map(b => b.name);
     }, [visibleBrands, filteredGlobalNews]);
 
+    const actualRadarA = visibleBrands.includes(radarBrandA) ? radarBrandA : (visibleBrands[0] || '');
+    const actualRadarB = visibleBrands.includes(radarBrandB) ? radarBrandB : (visibleBrands.length > 1 ? visibleBrands[1] : visibleBrands[0] || '');
+
     const heatmapData = useMemo(() => generateHeatmapData(filteredGlobalNews, topBrands, 28), [filteredGlobalNews, topBrands]);
     const heatmapDates = useMemo(() => Array.from(new Set(heatmapData.map(d => d.date))).sort(), [heatmapData]);
 
     const brandCards = useMemo(() => {
-        const coreFocusBrands = ["Changan 长安", "Chery 奇瑞", "Geely 吉利", "Jetour 捷途"];
+        // Default dynamic to top active or just 4 visible if no activity
+        const coreFocusBrands = topBrands.length > 0 ? topBrands.slice(0, 4) : visibleBrands.slice(0, 4);
         return coreFocusBrands.map(b => getBrandProfile(b, filteredGlobalNews));
-    }, [filteredGlobalNews]);
+    }, [filteredGlobalNews, topBrands, visibleBrands]);
 
     // Latest news (sorted by date desc)
     const latestNews = useMemo(() =>
@@ -162,8 +166,8 @@ const Dashboard: React.FC = () => {
                 <div className="lg:col-span-5 bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 flex flex-col min-h-[400px]">
                     <SectionHeader title="品牌对比雷达" />
                     <CompetitorRadar
-                        brandA={radarBrandA}
-                        brandB={radarBrandB}
+                        brandA={actualRadarA}
+                        brandB={actualRadarB}
                         onBrandAChange={setRadarBrandA}
                         onBrandBChange={setRadarBrandB}
                         availableBrands={visibleBrands}

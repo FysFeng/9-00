@@ -36,8 +36,18 @@ interface IntelligenceStore {
 }
 
 // 核心圈层定义
-export const CHALLENGER_BRANDS = ["BYD 比亚迪", "Geely 吉利", "Jetour 捷途", "Chery 奇瑞", "GWM 长城"];
-export const INCUMBENT_BRANDS = ["Toyota 丰田", "Nissan 日产", "Hyundai 现代", "Kia 起亚", "Ford 福特", "Lexus 雷克萨斯"];
+export const CHALLENGER_BRANDS = [
+    "BYD 比亚迪", "Geely 吉利", "Chery 奇瑞", "GWM 长城", "Jetour 捷途",
+    "Changan Deepal 深蓝", "Changan AVATR 阿维塔", "Geely Zeekr 极氪",
+    "Geely Lynk & Co 领克", "BYD DENZA 腾势", "Chery Exeed 星途",
+    "SAIC MG 名爵", "Xpeng 小鹏", "NIO 蔚来", "Li Auto 理想"
+];
+
+export const INCUMBENT_BRANDS = [
+    "Toyota 丰田", "Nissan 日产", "Hyundai 现代", "Kia 起亚",
+    "Ford 福特", "Chevrolet 雪佛兰", "Lexus 雷克萨斯", "Honda 本田",
+    "Volkswagen 大众", "Mercedes-Benz 奔驰", "BMW 宝马", "Audi 奥迪", "Land Rover 路虎"
+];
 
 const defaultEndDate = new Date().toISOString().split('T')[0];
 const defaultFilters: FilterState = {
