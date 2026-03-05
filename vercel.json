@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/cron.js": {
+      "maxDuration": 300
+    },
+    "api/collect.js": {
+      "maxDuration": 300
+    },
+    "api/ai.js": {
+      "maxDuration": 120
+    }
+  }
+}

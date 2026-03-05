@@ -1,0 +1,58 @@
+name: Daily Market Digest Push
+
+on:
+  # 每天北京时间 13:30 触发（UTC 05:30）
+  schedule:
+    - cron: '30 5 * * *'
+
+  # 允许在 GitHub Actions 页面手动触发，方便测试
+  workflow_dispatch:
+
+jobs:
+  push-digest:
+    name: Auto Digest & Push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Trigger Cron Endpoint
+        id: trigger
+        run: |
+          echo "📡 正在调用日报推送接口..."
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST "${{ secrets.APP_URL }}/api/cron" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            --max-time 600)
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          echo "📬 HTTP 状态码: $HTTP_CODE"
+          echo "📄 返回内容: $BODY"
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ 接口调用失败，HTTP 状态码: $HTTP_CODE"
+            exit 1
+          fi
+          
+          SUCCESS=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('success', False))")
+          if [ "$SUCCESS" != "True" ]; then
+            echo "❌ 推送失败，详情: $BODY"
+            exit 1
+          fi
+          
+          echo "✅ 推送成功！"
+          echo "body=$BODY" >> "$GITHUB_OUTPUT"
+
+      - name: Print Summary
+        if: always()
+        run: |
+          echo "## 每日简报推送结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M UTC') (北京时间 13:30)" >> $GITHUB_STEP_SUMMARY
+          echo "- **结果**: ${{ steps.trigger.outcome }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.trigger.outcome }}" == "success" ]; then
+            echo "- **详情**: ${{ steps.trigger.outputs.body }}" >> $GITHUB_STEP_SUMMARY
+          fi
