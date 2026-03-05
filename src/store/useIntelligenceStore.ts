@@ -114,9 +114,15 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
             const brandsRes = await fetch(`/api/data?type=brands&_t=${Date.now()}`, { cache: 'no-store' });
             const brandsData = await brandsRes.json();
 
+            // Merge cloud brands with local defaults to ensure new additions show up
+            const mergedBrands = Array.from(new Set([
+                ...DEFAULT_BRANDS,
+                ...(Array.isArray(brandsData) ? brandsData : [])
+            ]));
+
             set({
                 rawIntelligence: mappedNewsData.length > 0 ? mappedNewsData : INITIAL_NEWS,
-                customBrands: brandsData.length > 0 ? brandsData : DEFAULT_BRANDS,
+                customBrands: mergedBrands,
                 isLoading: false
             });
         } catch (error) {
