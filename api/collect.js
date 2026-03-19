@@ -13,13 +13,29 @@ import * as cheerio from 'cheerio';
 import { put, list, del } from '@vercel/blob';
 
 // ── RSS / Nitter / Google News config ──────────────────────────────
+
+// ── Tier 1: Dedicated UAE/GCC Auto Outlets ──────────────────────────
 const FIXED_SOURCES = [
+    // Auto-focused outlets
     { name: 'DriveArabia', url: 'https://www.drivearabia.com/news/feed/' },
+    { name: 'YallaMotor UAE', url: 'https://uae.yallamotor.com/car-news/rss' },
+    { name: 'Autocar Middle East', url: 'https://www.autocarme.com/rss' },
+
+    // General UAE business/news that covers auto heavily
     { name: 'Gulf News Auto', url: 'https://gulfnews.com/rss/business/auto' },
-    { name: 'YallaMotor', url: 'https://uae.yallamotor.com/car-news/rss' },
-    { name: 'Khaleej Times', url: 'https://www.khaleejtimes.com/business/auto.xml' },
+    { name: 'Khaleej Times Auto', url: 'https://www.khaleejtimes.com/business/auto.xml' },
+    { name: 'Arabian Business', url: 'https://www.arabianbusiness.com/rss' },
+    { name: 'The National UAE', url: 'https://www.thenationalnews.com/rss/vehicle.xml' },
+
+    // ── Tier 2: Government & Policy (UAE Official) ──────────────────
+    // WAM - UAE state news agency, covers all government/policy announcements
+    { name: 'WAM English', url: 'https://wam.ae/en/rss' },
+    // RTA Dubai media center (press releases: EV targets, traffic regs, fleet policy)
+    { name: 'RTA Dubai News', url: 'https://www.rta.ae/wps/content/connect/rta/site/en/news/all-news-feed' },
 ];
 
+// ── Tier 3: Official Brand Accounts on X (via Nitter) ────────────────
+// Only using accounts with meaningful regular activity; regional > global where available
 const NITTER_INSTANCES = [
     'https://nitter.privacydev.net',
     'https://nitter.42l.fr',
@@ -27,28 +43,88 @@ const NITTER_INSTANCES = [
 ];
 
 const OFFICIAL_X_ACCOUNTS = [
-    { brand: 'BYD', handle: 'BYDGlobal' },
+    // Changan — primary focus brand
+    { brand: 'Changan UAE', handle: 'ChanganAutoUAE' },
+    { brand: 'Changan Global', handle: 'ChanganAutoGroup' },
+
+    // Chinese challengers in UAE
     { brand: 'BYD UAE', handle: 'BYDAutoUAE' },
-    { brand: 'Toyota', handle: 'Toyota' },
-    { brand: 'Hyundai', handle: 'Hyundai_Global' },
-    { brand: 'Kia', handle: 'Kia_Worldwide' },
-    { brand: 'GWM', handle: 'gwm_global' },
-    { brand: 'Changan', handle: 'ChanganAutoGroup' },
-    { brand: 'Jetour', handle: 'JetourOfficial' },
+    { brand: 'MG UAE', handle: 'MGMotorUAE' },
+    { brand: 'Geely UAE', handle: 'GeelyAutoME' },
+    { brand: 'Chery UAE', handle: 'CheryAutoUAE' },
+    { brand: 'GAC UAE', handle: 'GACMotorUAE' },
+    { brand: 'GWM UAE', handle: 'GWMMotorUAE' },
+
+    // Incumbent brands (market baseline / competitive pressure)
+    { brand: 'Toyota UAE', handle: 'ToyotaUAE' },
+    { brand: 'Nissan ME', handle: 'NissanMiddleEast' },
+    { brand: 'Hyundai ME', handle: 'HyundaiME' },
+    { brand: 'Kia UAE', handle: 'KiaUAE' },
+
+    // UAE auto ecosystem
+    { brand: 'Al-Futtaim Auto', handle: 'AlFuttaimGroup' },      // BYD, Toyota distrib.
+    { brand: 'AW Rostamani', handle: 'AWRostamani' },            // Geely, Nissan
+    { brand: 'DEWA', handle: 'DEWAOfficial' },                   // EV charging infrastructure
+    { brand: 'RTA Dubai', handle: 'rta_dubai' },                 // Vehicle registration policy
 ];
 
+// ── Tier 4: Google News Keyword Sweeps ───────────────────────────────
+// Organized by strategic topic, not just brand name pairings
 const GOOGLE_NEWS_KEYWORDS = [
-    'Changan car UAE', 'Changan Lamore UAE', 'Changan Uni UAE', 'Changan electric UAE',
-    'BYD UAE price', 'BYD Atto UAE', 'BYD Han UAE', 'BYD Al-Futtaim UAE',
-    'Toyota UAE 2025', 'Toyota price drop UAE', 'Hyundai Tucson UAE', 'Kia Sportage UAE', 'Nissan UAE launch',
-    'MG Motor UAE', 'MG Whale UAE', 'MG price offer Dubai',
-    'Geely UAE price', 'Geely Monjaro UAE', 'Zeekr UAE AW Rostamani',
-    'Chery UAE Tiggo', 'Omoda UAE launch', 'Jaecoo UAE price',
-    'Haval UAE SUV', 'Tank 500 UAE', 'GWM Ora UAE',
-    'GAC Motor UAE Gargash', 'GAC Aion electric UAE',
-    'car price reduction UAE 2025', 'car discount offer UAE', 'SUV promotion UAE',
-    'UAE auto market sales 2025', 'UAE electric vehicle charging', 'UAE EV policy subsidy',
-    'Chinese car brand Middle East', 'China automobile GCC 2025', 'new SUV launch UAE 2025',
+    // === Changan in UAE ===
+    'Changan car UAE launch',
+    'Changan Uni UAE price',
+    'Changan CS75 UAE',
+    'Changan Lamore UAE',
+    'Changan electric vehicle UAE',
+    'Changan EV dealer UAE',
+
+    // === Chinese challenger brands (direct competition) ===
+    'BYD UAE dealer price 2025',
+    'BYD Atto 3 UAE',
+    'BYD Seal UAE price',
+    'MG Motor UAE new model',
+    'MG ZS EV UAE price',
+    'Chery Tiggo UAE launch',
+    'Omoda UAE price',
+    'Jaecoo UAE launch',
+    'Geely Monjaro UAE',
+    'Zeekr UAE',
+    'GAC Aion UAE electric',
+    'Haval H6 UAE price',
+    'Tank 300 UAE',
+    'Jetour UAE launch',
+
+    // === Incumbent Japanese/Korean brands (market pressure context) ===
+    'Toyota RAV4 UAE discount',
+    'Toyota Land Cruiser UAE 2025',
+    'Nissan patrol UAE deal',
+    'Hyundai Tucson UAE price',
+    'Kia Sportage UAE offer',
+
+    // === UAE Market-level data ===
+    'UAE car sales figures 2025',
+    'UAE automobile market growth',
+    'Dubai Motor Show 2025',
+    'Abu Dhabi auto market',
+    'GCC car market share Chinese brands',
+    'car price reduction UAE promotion',
+    'zero percent finance car UAE',
+    'used car market UAE 2025',
+
+    // === EV & Infrastructure (directly affects market dynamics) ===
+    'UAE electric vehicle sales target',
+    'Dubai EV charging station DEWA',
+    'UAE green vehicle incentive policy',
+    'Abu Dhabi electric car subsidy',
+    'UAE EV registration statistics',
+
+    // === Government & Regulatory (RTA, MOEI, municipal) ===
+    'RTA Dubai vehicle registration new rules',
+    'UAE vehicle import regulation 2025',
+    'UAE automotive policy ministry',
+    'UAE fuel price October 2025',
+    'Emirates vehicle inspection requirement',
 ];
 
 const toNitterRSS = (handle, brand) => ({
@@ -66,6 +142,7 @@ const ALL_SOURCES = [
     ...OFFICIAL_X_ACCOUNTS.map(a => toNitterRSS(a.handle, a.brand)),
     ...GOOGLE_NEWS_KEYWORDS.map(toGoogleNewsRSS),
 ];
+
 
 async function fetchSingleRSS(source, cutoffTime) {
     try {
