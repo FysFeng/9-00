@@ -105,7 +105,7 @@ export async function fetchAndScreenRSS(
 ): Promise<RSSFetchResult> {
 
     // 1. 拉取原始 RSS
-    const rssRes = await fetch(`/ api / collect ? action = rss & days=${days} `);
+    const rssRes = await fetch(`/api/collect?action=rss&days=${days}`);
     if (!rssRes.ok) throw new Error('RSS 服务请求失败');
     const { items }: { items: RawRSSItem[] } = await rssRes.json();
 

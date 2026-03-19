@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from 'recharts';
 import { NewsItem, NewsType } from '../types';
 import { NEWS_TYPE_LABELS } from '../constants';
+import { generateWeeklySummary, WeeklySummaryData } from '../services/qwenService';
 
 interface WeeklyReportModalProps {
   isOpen: boolean;
@@ -30,6 +31,9 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiSummary, setAiSummary] = useState<WeeklySummaryData | null>(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState('');
   const reportRef = useRef<HTMLDivElement>(null);
 
   // Filter news based on date range
@@ -142,28 +146,60 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
               </div>
             </div>
 
-            <div className="text-center">
-              <p className="text-sm text-slate-500 mb-2">即将生成包含 <strong className="text-slate-800">{filteredNews.length}</strong> 条新闻的报告</p>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500">即将生成包含 <strong className="text-slate-800">{filteredNews.length}</strong> 条新闻的报告</p>
+
+              {/* AI Summary Button */}
+              <button
+                onClick={async () => {
+                  if (filteredNews.length === 0) return;
+                  setIsGeneratingAI(true);
+                  setAiError('');
+                  try {
+                    const period = `${startDate} ~ ${endDate}`;
+                    const result = await generateWeeklySummary(filteredNews, period);
+                    setAiSummary(result);
+                    setGeneratedImage(null); // Reset image so user re-generates with AI content
+                  } catch (e: any) {
+                    setAiError(e.message || 'AI 生成失败，请重试');
+                  } finally {
+                    setIsGeneratingAI(false);
+                  }
+                }}
+                disabled={isGeneratingAI || filteredNews.length === 0}
+                className={`w-full py-2.5 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 text-sm ${
+                  isGeneratingAI || filteredNews.length === 0
+                    ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                    : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-violet-500/30'
+                }`}
+              >
+                {isGeneratingAI ? (
+                  <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>AI 分析中...</span></>
+                ) : (
+                  <><span>✨</span><span>{aiSummary ? '重新生成 AI 摘要' : '生成 AI 执行摘要'}</span></>
+                )}
+              </button>
+              {aiError && <p className="text-xs text-red-500">{aiError}</p>}
+              {aiSummary && !isGeneratingAI && (
+                <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg text-xs text-violet-700 leading-relaxed">
+                  <p className="font-bold mb-1">✅ AI 摘要已就绪，点击下方生成海报</p>
+                  <p className="text-violet-600">{aiSummary.executive_summary.slice(0, 60)}…</p>
+                </div>
+              )}
+
+              {/* Generate Poster Button */}
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || filteredNews.length === 0}
-                className={`w-full py-3 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 ${isGenerating || filteredNews.length === 0
+                className={`w-full py-2.5 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 text-sm ${isGenerating || filteredNews.length === 0
                     ? 'bg-slate-300 cursor-not-allowed shadow-none'
                     : 'bg-red-600 hover:bg-red-700 shadow-red-500/30'
                   }`}
               >
                 {isGenerating ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span>生成中...</span>
-                  </>
+                  <><svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>生成中...</span></>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span>生成海报图片</span>
-                  </>
+                  <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg><span>生成海报图片</span></>
                 )}
               </button>
             </div>
@@ -296,6 +332,27 @@ const WeeklyReportModal: React.FC<WeeklyReportModalProps> = ({ isOpen, onClose, 
                       </ResponsiveContainer>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2.5. AI INSIGHT SECTION */}
+            {aiSummary && (
+              <div className="bg-gradient-to-br from-slate-900 to-indigo-950 px-8 py-6 border-b border-indigo-800">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">✨ AI Executive Insight</span>
+                </div>
+                <p className="text-sm text-slate-200 leading-relaxed mb-5">{aiSummary.executive_summary}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {aiSummary.top_trends.map((trend, i) => (
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                      <div className="text-[10px] text-indigo-300 font-black uppercase tracking-wider mb-1">#{i + 1} {trend.title}</div>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mb-2">{trend.evidence}</p>
+                      <div className="border-t border-white/10 pt-2">
+                        <p className="text-[9px] text-amber-300 leading-relaxed">→ {trend.implication}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

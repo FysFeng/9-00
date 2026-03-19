@@ -118,7 +118,6 @@ export const analyzeTextWithQwen = async (text: string, currentBrands: string[] 
   }
 };
 
-// 新增：生成品牌复盘报告
 export const generateBrandReport = async (brand: string, periodLabel: string, newsList: NewsItem[]): Promise<BrandReportData> => {
   // 简化输入，减少 Token 消耗
   const newsContext = newsList.map(n => `[${n.date}] ${n.type}: ${n.title}`).join('\n');
@@ -168,3 +167,66 @@ export const generateBrandReport = async (brand: string, periodLabel: string, ne
     throw error;
   }
 };
+
+// ─── Weekly Summary (Phase 5) ─────────────────────────────────────────────────
+export interface WeeklySummaryData {
+  executive_summary: string;
+  top_trends: Array<{
+    title: string;
+    evidence: string;
+    implication: string;
+  }>;
+}
+
+export const generateWeeklySummary = async (newsList: NewsItem[], period: string): Promise<WeeklySummaryData> => {
+  // Use at most 15 key items to reduce token usage
+  const keyItems = newsList
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 15)
+    .map(n => `[${n.date}][${n.brand}][${n.type}] ${n.title}`)
+    .join('\n');
+
+  const systemPrompt = `
+    You are a senior automotive market intelligence analyst. Analyze the following UAE auto market news from ${period} and produce a strategic weekly briefing.
+
+    Your output must be strict JSON in this format:
+    {
+      "executive_summary": "2-3 sentence high-level synthesis in Chinese covering the week's most important strategic shifts",
+      "top_trends": [
+        {
+          "title": "Trend name (Chinese, 10 chars max)",
+          "evidence": "One specific news event or data point that illustrates this trend",
+          "implication": "What this means for Changan's strategy in the UAE"
+        }
+      ]
+    }
+
+    Rules:
+    - executive_summary must be in Chinese, concise and actionable
+    - top_trends must have exactly 3 items
+    - Each trend title must be in Chinese, ≤10 characters
+    - Evidence should cite a specific brand/event from the news list
+    - Implication must directly reference Changan's competitive position
+    - Return ONLY valid JSON, no markdown fences
+  `;
+
+  const response = await fetch("/api/ai?action=analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `News Context:\n${keyItems}`, prompt: systemPrompt })
+  });
+
+  if (!response.ok) throw new Error("Weekly summary generation failed");
+  const rawData = await response.json();
+  const rawContent = rawData.output?.choices?.[0]?.message?.content || "";
+
+  let cleanJson = rawContent.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const firstOpen = cleanJson.indexOf("{");
+  const lastClose = cleanJson.lastIndexOf("}");
+  if (firstOpen !== -1 && lastClose !== -1) {
+    cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
+  }
+
+  return JSON.parse(cleanJson) as WeeklySummaryData;
+};
+
