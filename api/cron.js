@@ -27,20 +27,36 @@ const QWEN_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-gener
 // 自动采集的 RSS 源（与 collect.js 保持同步）
 const FIXED_SOURCES = [
     { name: 'DriveArabia', url: 'https://www.drivearabia.com/news/feed/' },
+    { name: 'YallaMotor UAE', url: 'https://uae.yallamotor.com/car-news/rss' },
+    { name: 'Autocar Middle East', url: 'https://www.autocarme.com/rss' },
     { name: 'Gulf News Auto', url: 'https://gulfnews.com/rss/business/auto' },
-    { name: 'YallaMotor', url: 'https://uae.yallamotor.com/car-news/rss' },
-    { name: 'Khaleej Times', url: 'https://www.khaleejtimes.com/business/auto.xml' },
+    { name: 'Khaleej Times Auto', url: 'https://www.khaleejtimes.com/business/auto.xml' },
+    { name: 'Arabian Business', url: 'https://www.arabianbusiness.com/rss' },
+    { name: 'The National UAE', url: 'https://www.thenationalnews.com/rss/vehicle.xml' },
+    { name: 'WAM English', url: 'https://wam.ae/en/rss' },
+    { name: 'RTA Dubai News', url: 'https://www.rta.ae/wps/content/connect/rta/site/en/news/all-news-feed' },
 ];
 
 const GOOGLE_NEWS_KEYWORDS = [
-    'Changan car UAE 2025',
-    'BYD UAE price 2025',
-    'Toyota UAE 2025',
-    'Chinese car brand UAE',
-    'Hyundai Kia UAE launch',
-    'UAE auto market sales 2025',
-    'UAE EV policy 2025',
-    'Jetour Chery Geely UAE',
+    // === Changan Focus ===
+    'Changan car UAE launch',
+    'Changan Uni UAE price',
+    'Changan electric vehicle UAE',
+    // === Chinese Challengers ===
+    'BYD UAE price',
+    'MG Motor UAE new model',
+    'Chery Tiggo UAE launch',
+    'Omoda UAE price',
+    'Geely Monjaro UAE',
+    'GAC Aion UAE electric',
+    'Jetour UAE launch',
+    // === Market & Infrastructure ===
+    'UAE car sales figures 2025',
+    'Dubai Motor Show 2025',
+    'Dubai EV charging station DEWA',
+    'UAE EV registration statistics',
+    'RTA Dubai vehicle registration new rules',
+    'UAE vehicle import regulation',
 ];
 
 const toGoogleNewsRSS = (kw) => ({
@@ -52,6 +68,7 @@ const ALL_SOURCES = [
     ...FIXED_SOURCES,
     ...GOOGLE_NEWS_KEYWORDS.map(toGoogleNewsRSS),
 ];
+
 
 // ── 工具函数 ────────────────────────────────────────────────────────────
 
