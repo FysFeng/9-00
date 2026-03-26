@@ -33,7 +33,7 @@ export const generateHeatmapData = (news: NewsItem[], brands: string[], days: nu
         dateRange.forEach(date => {
             const count = news.filter(n => n.brand === brand && n.date === date).length;
             // Simple linear intensity mapping: 0=0, 1=1, 2=2, 3+=3
-            const intensity = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : 3;
+            const intensity = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 4;
 
             data.push({
                 date,

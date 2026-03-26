@@ -29,27 +29,30 @@ const uid = () => `rss-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 // 调用 /api/analyze 请求 Qwen 结构化提取
 async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
-    const systemPrompt = `你是中东汽车市场情报整理员。
-你的任务是评估输入的新闻是否跟"阿联酋及海湾国家汽车市场"相关，并从中提取结构化情报。
+    const systemPrompt = `你是中东汽车市场情报整理员，任务是判断新闻是否与"阿联酋及海湾国家汽车市场"直接相关，并提取结构化情报。
 
-【核心过滤规则】 (Noise Filter)
-若新闻仅属于以下宏观事件但对阿联酋无直接业务影响，判定为不相关 (relevant: false)：
-- 某品牌在欧美/南美的建厂或工会罢工
-- 欧美针对中国电动车的关税与贸易摩擦
-- 纯粹的公司高管人事或花边新闻
+【相关性判定规则——必须同时满足以下两点才能判定为相关】
+1. 新闻内容明确涉及阿联酋(UAE)、迪拜、阿布扎比、海湾地区(GCC)的汽车市场活动；
+2. 新闻涉及实质性汽车行业事件（新车发布、价格、销量、政策、充电基础设施、经销商等）。
 
-如果新闻与中东汽车市场高度相关，请严格按照以下 JSON 格式返回分析结果（必须是合法的 JSON，不要返回 markdown 标记）：
+【判定为不相关 (relevant: false) 的明确情形】
+- 新闻发生在欧洲、美洲、中国国内，且未提及阿联酋/海湾地区的影响；
+- 欧美对中国电动车的关税/反补贴调查；
+- 企业高管人事、投资人关系、股价变动等；
+- 新闻提到汽车品牌，但内容是体育赞助、娱乐活动等非业务事件；
+- ⚠️ 新闻内容中没有明确出现任何预设品牌名称时，禁止主动推断品牌，直接返回 {"relevant": false}。
 
+【相关时的输出格式】（合法 JSON，不得包含 markdown 代码块标记）:
 {
   "relevant": true,
-  "brand": "必须从预设列表中选择最接近的一个。预设列表：['Changan 长安', 'BYD 比亚迪', 'Geely 吉利', 'MG 名爵', 'Chery 奇瑞', 'Jetour 捷途', 'GWM 长城', 'Toyota 丰田', 'Nissan 日产', 'Hyundai 现代', 'Kia 起亚', 'Lexus 雷克萨斯', 'Honda 本田', 'Ford 福特', 'GMC', 'Chevrolet 雪佛兰', 'Mercedes-Benz 奔驰', 'BMW 宝马', 'Audi 奥迪', 'Tesla 特斯拉', 'Volkswagen 大众', 'Land Rover 路虎', 'Exeed 星途', 'Omoda 欧萌达', 'Zeekr 极氪', 'Hongqi 红旗', 'NIO 蔚来', 'XPENG 小鹏', 'Deepal 深蓝', '政策相关', 'Other 其他品牌']。如果提到子品牌，尽量映射为母品牌或对应品牌。",
-  "chineseTitle": "必须是中文，15字以内的精炼标题，包含品牌名",
-  "type": "必须严格是以下枚举值之一：'Launch (Physical)' | 'Tech & OTA' | 'Market & Sales' | 'Policy' | 'Network & Service' | 'Competitor Tactics' | 'Corp Strategy' | 'Other'",
-  "summary": "用一两句话陈述新闻事实，语言必须客观简洁，不要加主观看法，不要写'影响'或分析。",
-  "tags": ["提取1-2个核心业务关键词，如 '纯电引入', '旗舰降价'"]
+  "brand": "从以下列表中严格匹配新闻中明确出现的品牌名；若新闻涉及多品牌或品牌不明确，选 'Other 其他品牌'；若为政府政策类，选 '政策相关'。列表：['Changan 长安', 'BYD 比亚迪', 'Geely 吉利', 'MG 名爵', 'Chery 奇瑞', 'Jetour 捷途', 'GWM 长城', 'Toyota 丰田', 'Nissan 日产', 'Hyundai 现代', 'Kia 起亚', 'Lexus 雷克萨斯', 'Honda 本田', 'Ford 福特', 'GMC', 'Chevrolet 雪佛兰', 'Mercedes-Benz 奔驰', 'BMW 宝马', 'Audi 奥迪', 'Tesla 特斯拉', 'Volkswagen 大众', 'Land Rover 路虎', 'Exeed 星途', 'Omoda 欧萌达', 'Zeekr 极氪', 'Hongqi 红旗', 'NIO 蔚来', 'XPENG 小鹏', 'Deepal 深蓝', '政策相关', 'Other 其他品牌']",
+  "chineseTitle": "中文标题，15字以内，必须包含品牌名或地区名",
+  "type": "严格选以下枚举值之一：'Launch (Physical)' | 'Tech & OTA' | 'Market & Sales' | 'Policy' | 'Network & Service' | 'Competitor Tactics' | 'Corp Strategy' | 'Other'",
+  "summary": "一两句话只陈述新闻事实本身（何人、何事、何地），禁止写'这对长安意味着''这将影响'等分析性语言。",
+  "tags": ["1-2个核心关键词，如 '纯电引入' 或 '旗舰降价'"]
 }
 
-如果新闻与中东市场无关，直接返回：{"relevant": false}`;
+【不相关时】直接返回：{"relevant": false}\``;
 
     try {
         const res = await fetch('/api/ai?action=analyze', {

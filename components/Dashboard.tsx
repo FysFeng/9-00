@@ -128,16 +128,29 @@ const Dashboard: React.FC = () => {
         return { bg: 'bg-slate-700', text: 'text-slate-700', ring: 'ring-slate-400', border: 'border-slate-200' };
     };
 
-    const getIntensityColor = (intensity: number, brand: string) => {
-        if (intensity === 0) return 'bg-slate-50 border border-slate-100';
-        const color = getBrandColor(brand).bg.replace('bg-', '');
-        switch (intensity) {
-            case 1: return `bg-${color.replace(/\d+/, '100')} border border-${color.replace(/\d+/, '200')}`;
-            case 2: return `bg-${color.replace(/\d+/, '300')}`;
-            case 3: return `bg-${color.replace(/\d+/, '500')}`;
-            case 4: return `bg-${color.replace(/\d+/, '700')}`;
-            default: return 'bg-slate-50 border border-slate-100';
-        }
+    // Map brand → hue (HSL) for the heatmap.
+    const getBrandHue = (brand: string): number => {
+        if (brand.includes('Changan'))   return 217; // blue
+        if (brand.includes('BYD'))       return 252; // indigo
+        if (brand.includes('Toyota'))    return 355; // red
+        if (brand.includes('Geely'))     return 188; // cyan
+        if (brand.includes('MG'))        return 25;  // orange
+        if (brand.includes('Chery'))     return 160; // teal
+        if (brand.includes('Nissan'))    return 30;  // amber
+        if (brand.includes('Hyundai'))   return 200; // sky
+        if (brand.includes('Kia'))       return 280; // purple
+        if (brand.includes('Tesla'))     return 0;   // rose
+        return 220; // default slate-blue
+    };
+
+    // Returns an inline style object — avoids PurgeCSS stripping dynamic Tailwind classes.
+    const getIntensityStyle = (intensity: number, brand: string): React.CSSProperties => {
+        if (intensity === 0) return { backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' };
+        const hue = getBrandHue(brand);
+        // intensity 1-4 → lightness 85% → 30% (more distinct range)
+        const lightness = [85, 65, 45, 28][intensity - 1];
+        const saturation = intensity === 1 ? 55 : 75;
+        return { backgroundColor: `hsl(${hue}, ${saturation}%, ${lightness}%)` };
     };
 
     const SectionHeader = ({ title, subtitle, accent }: { title: string, subtitle?: string, accent?: string }) => (
@@ -202,7 +215,8 @@ const Dashboard: React.FC = () => {
                                                     <div
                                                         key={`${brand}-${date}`}
                                                         title={`${brand} on ${date}: ${point?.count || 0} 条`}
-                                                        className={`w-8 h-8 rounded shrink-0 transition-all duration-300 hover:scale-110 hover:-translate-y-1 hover:shadow-md cursor-default ${getIntensityColor(intensity, brand)}`}
+                                                        style={getIntensityStyle(intensity, brand)}
+                                                        className="w-8 h-8 rounded shrink-0 transition-all duration-300 hover:scale-110 hover:-translate-y-1 hover:shadow-md cursor-default"
                                                     ></div>
                                                 );
                                             })}
@@ -215,12 +229,14 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="flex gap-4 justify-end mt-6 items-center">
                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Intensity</span>
-                    <div className="flex gap-1.5">
-                        <div className="w-4 h-4 bg-slate-50 border border-slate-100 rounded"></div>
-                        <div className="w-4 h-4 bg-slate-200 rounded"></div>
-                        <div className="w-4 h-4 bg-slate-400 rounded"></div>
-                        <div className="w-4 h-4 bg-slate-600 rounded"></div>
+                    <div className="flex gap-1.5 items-center">
+                        <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }} />
+                        <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: 'hsl(217,55%,85%)' }} />
+                        <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: 'hsl(217,75%,65%)' }} />
+                        <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: 'hsl(217,75%,45%)' }} />
+                        <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: 'hsl(217,75%,28%)' }} />
                     </div>
+                    <span className="text-[10px] text-slate-400 font-medium">Low → High</span>
                 </div>
             </div>
 
