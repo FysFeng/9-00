@@ -40,6 +40,7 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
 - 欧美对中国电动车的关税/反补贴调查；
 - 企业高管人事、投资人关系、股价变动等；
 - 新闻提到汽车品牌，但内容是体育赞助、娱乐活动等非业务事件；
+- ⚠️ 二手车转让、车辆出售广告、分类广告（classified listing）、个人车主出售信息，一律返回 {"relevant": false}；
 - ⚠️ 新闻内容中没有明确出现任何预设品牌名称时，禁止主动推断品牌，直接返回 {"relevant": false}。
 
 【相关时的输出格式】（合法 JSON，不得包含 markdown 代码块标记）:

@@ -302,7 +302,7 @@ function RSSTab({ onImport }: { onImport: (items: NewsItem[]) => void }) {
         <div className="space-y-5">
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-700 mb-1">🔄 RSS 自动采集</p>
-                <p>从直连 RSS、X 镜像源与 Google News 站点检索源抓取原始资讯，由 Qwen AI 自动筛选相关内容、识别品牌、分类、翻译并生成中文摘要后导入。</p>
+                <p>从 <span className="font-medium text-slate-700">YallaMotor、Gulf News、DriveArabia、AutoDrift、The National、Arabian Business、WAM、品牌官方 X 账号</span> 等渠道抓取原始资讯，由 Qwen AI 自动筛选相关内容、识别品牌、分类、翻译并生成中文摘要后导入。</p>
             </div>
 
             {/* 天数选择 */}
