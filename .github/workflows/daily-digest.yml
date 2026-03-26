@@ -1,9 +1,9 @@
-name: Daily Market Digest Push
+name: Tri-Daily Market Digest Push
 
 on:
-  # 每天北京时间 13:30 触发（UTC 05:30）
+  # 每三天北京时间 13:30 触发（UTC 05:30），每月 1、4、7、10...日
   schedule:
-    - cron: '30 5 * * *'
+    - cron: '30 5 */3 * *'
 
   # 允许在 GitHub Actions 页面手动触发，方便测试
   workflow_dispatch:
