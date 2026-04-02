@@ -1,4 +1,4 @@
-import { NewsType, SentimentType, NewsItem } from '../types';
+import { NewsType, SentimentType, NewsItem, StrategySignal } from '../types';
 import { DEFAULT_BRANDS } from '../constants';
 
 export interface ExtractedNewsData {
@@ -11,6 +11,10 @@ export interface ExtractedNewsData {
   image_keywords: string;
   sentiment?: SentimentType;
   tags: string[];
+  model?: string;
+  msrp?: string;
+  currency?: string;
+  strategy_signals?: StrategySignal[];
 }
 
 export interface BrandReportData {
@@ -41,6 +45,60 @@ const extractJsonObject = (rawContent: string): string => {
   return firstOpen !== -1 && lastClose !== -1 ? cleaned.substring(firstOpen, lastClose + 1) : cleaned;
 };
 
+const ALLOWED_SIGNAL_CATEGORIES = new Set<StrategySignal['category']>([
+  'price',
+  'finance',
+  'insurance',
+  'trade_in',
+  'service',
+  'campaign',
+  'distribution',
+  'inventory',
+  'charging',
+  'delivery',
+  'buyback',
+  'fleet',
+  'bundle',
+  'other',
+]);
+
+const ALLOWED_NEWS_TYPES = new Set<NewsType>([
+  NewsType.LAUNCH_PHYSICAL,
+  NewsType.TECH_OTA,
+  NewsType.MARKET_SALES,
+  NewsType.POLICY,
+  NewsType.NETWORK_SERVICE,
+  NewsType.COMPETITOR_TACTICS,
+  NewsType.CORP_STRATEGY,
+  NewsType.OTHER,
+]);
+
+const normalizeStrategySignals = (signals: unknown): StrategySignal[] => {
+  if (!Array.isArray(signals)) return [];
+
+  return signals
+    .map((signal) => {
+      if (!signal || typeof signal !== 'object') return null;
+      const raw = signal as Record<string, unknown>;
+      const category = typeof raw.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(raw.category as StrategySignal['category'])
+        ? raw.category as StrategySignal['category']
+        : 'other';
+      const action = typeof raw.action === 'string' ? raw.action.trim() : '';
+      const model = typeof raw.model === 'string' ? raw.model.trim() : undefined;
+      const msrp = typeof raw.msrp === 'string' ? raw.msrp.trim() : undefined;
+      const currency = typeof raw.currency === 'string' ? raw.currency.trim() : undefined;
+      const current_value = typeof raw.current_value === 'string' ? raw.current_value.trim() : undefined;
+      const previous_value = typeof raw.previous_value === 'string' ? raw.previous_value.trim() : undefined;
+      const note = typeof raw.note === 'string' ? raw.note.trim() : undefined;
+      const raw_excerpt = typeof raw.raw_excerpt === 'string' ? raw.raw_excerpt.trim() : undefined;
+
+      if (!action) return null;
+      return { category, action, model, msrp, currency, current_value, previous_value, note, raw_excerpt };
+    })
+    .filter((signal): signal is StrategySignal => Boolean(signal))
+    .slice(0, 5);
+};
+
 const fetchAnalyze = async (text: string, prompt: string) => {
   const response = await fetch('/api/ai?action=analyze', {
     method: 'POST',
@@ -66,6 +124,22 @@ const fetchAnalyze = async (text: string, prompt: string) => {
   return JSON.parse(extractJsonObject(rawContent));
 };
 
+const normalizeExtractedData = (parsed: Partial<ExtractedNewsData>): ExtractedNewsData => ({
+  title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '未命名资讯',
+  summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
+  brand: typeof parsed.brand === 'string' && parsed.brand.trim() ? parsed.brand.trim() : 'Other',
+  type: ALLOWED_NEWS_TYPES.has(parsed.type as NewsType) ? parsed.type as NewsType : NewsType.OTHER,
+  date: typeof parsed.date === 'string' && parsed.date.trim() ? parsed.date.trim() : today,
+  url: typeof parsed.url === 'string' ? parsed.url.trim() : '',
+  image_keywords: typeof parsed.image_keywords === 'string' && parsed.image_keywords.trim() ? parsed.image_keywords.trim() : 'car news',
+  sentiment: parsed.sentiment,
+  tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 5) : [],
+  model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
+  msrp: typeof parsed.msrp === 'string' ? parsed.msrp.trim() : '',
+  currency: typeof parsed.currency === 'string' ? parsed.currency.trim() : '',
+  strategy_signals: normalizeStrategySignals(parsed.strategy_signals),
+});
+
 export const analyzeTextWithQwen = async (
   text: string,
   currentBrands: string[] = DEFAULT_BRANDS,
@@ -90,11 +164,18 @@ Goals:
 - ${NewsType.OTHER}
 4. Extract 3-5 tags.
 5. image_keywords must be 3-6 simple English keywords.
+6. Extract strategy_signals only when the source text explicitly states a concrete tactic change.
+7. If the source explicitly states a model name or MSRP/list price, extract them.
 
 Rules:
 - summary must describe facts only, not recommendations.
 - Do not mention opportunities, threats, implications, advice, or brand strategy.
 - Do not infer business impact for any brand unless the source text states it directly.
+- strategy_signals must be empty if the text does not clearly describe a concrete offer, pricing move, finance plan, insurance policy, trade-in offer, service policy, campaign, channel expansion, or inventory move.
+- Use model only when the source explicitly names the product/model.
+- Use msrp only when the source explicitly states a list price / MSRP / starting price / official price guidance.
+- Do not guess product names, discount sizes, old prices, or policy changes.
+- If the text says "0 down payment", "cash discount cut from AED 50,000 to AED 45,000", or "extended warranty/insurance added", capture those as strategy_signals.
 - If the date is unclear, use ${today}.
 - If the URL is unclear, use an empty string.
 - If the brand is not in the allowed list, use "Other".
@@ -108,11 +189,34 @@ Output JSON:
   "date": "YYYY-MM-DD",
   "url": "",
   "image_keywords": "english keywords",
-  "tags": ["tag1", "tag2", "tag3"]
+  "tags": ["tag1", "tag2", "tag3"],
+  "model": "explicit model name or empty string",
+  "msrp": "explicit list price or empty string",
+  "currency": "AED or empty string",
+  "strategy_signals": [
+    {
+      "category": "price | finance | insurance | trade_in | service | campaign | distribution | inventory | charging | delivery | buyback | fleet | bundle | other",
+      "action": "short factual description in Chinese",
+      "model": "explicit model name if stated",
+      "msrp": "explicit list price if stated",
+      "currency": "AED if stated",
+      "current_value": "current offer/value if explicitly stated",
+      "previous_value": "previous offer/value if explicitly stated",
+      "note": "product or scope if explicitly stated",
+      "raw_excerpt": "short source phrase if useful"
+    }
+  ]
 }`;
 
   try {
-    return await fetchAnalyze(text, systemPrompt) as ExtractedNewsData;
+    const parsed = await fetchAnalyze(text, systemPrompt) as ExtractedNewsData;
+    return {
+      ...parsed,
+      model: typeof (parsed as any).model === 'string' ? (parsed as any).model.trim() : '',
+      msrp: typeof (parsed as any).msrp === 'string' ? (parsed as any).msrp.trim() : '',
+      currency: typeof (parsed as any).currency === 'string' ? (parsed as any).currency.trim() : '',
+      strategy_signals: normalizeStrategySignals(parsed.strategy_signals),
+    };
   } catch (error: any) {
     console.error('Qwen Analysis Failed:', error);
     throw new Error(error.message || '智能分析服务暂时不可用');

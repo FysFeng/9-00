@@ -85,9 +85,28 @@ const toNitterRSS = (handle, brand, instanceIndex = 0) => ({
 
 const ALL_SOURCES = [
     ...FIXED_SOURCES,
-    ...OFFICIAL_X_ACCOUNTS.flatMap((account) => NITTER_INSTANCES.map((_, index) => toNitterRSS(account.handle, account.brand, index))),
+    ...OFFICIAL_X_ACCOUNTS.flatMap((account) =>
+        NITTER_INSTANCES.map((_, index) => toNitterRSS(account.handle, account.brand, index)),
+    ),
     ...GOOGLE_NEWS_KEYWORDS.map(toGoogleNewsRSS),
 ];
+
+const ALLOWED_SIGNAL_CATEGORIES = new Set([
+    'price',
+    'finance',
+    'insurance',
+    'trade_in',
+    'service',
+    'campaign',
+    'distribution',
+    'inventory',
+    'charging',
+    'delivery',
+    'buyback',
+    'fleet',
+    'bundle',
+    'other',
+]);
 
 function normalizeText(value = '') {
     return value
@@ -116,6 +135,31 @@ function normalizeUrl(rawUrl = '') {
     } catch {
         return rawUrl.trim();
     }
+}
+
+function normalizeStrategySignals(signals) {
+    if (!Array.isArray(signals)) return [];
+
+    return signals
+        .map((signal) => {
+            if (!signal || typeof signal !== 'object') return null;
+            const category = typeof signal.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(signal.category)
+                ? signal.category
+                : 'other';
+            const action = typeof signal.action === 'string' ? signal.action.trim() : '';
+            const model = typeof signal.model === 'string' ? signal.model.trim() : undefined;
+            const msrp = typeof signal.msrp === 'string' ? signal.msrp.trim() : undefined;
+            const currency = typeof signal.currency === 'string' ? signal.currency.trim() : undefined;
+            const current_value = typeof signal.current_value === 'string' ? signal.current_value.trim() : undefined;
+            const previous_value = typeof signal.previous_value === 'string' ? signal.previous_value.trim() : undefined;
+            const note = typeof signal.note === 'string' ? signal.note.trim() : undefined;
+            const raw_excerpt = typeof signal.raw_excerpt === 'string' ? signal.raw_excerpt.trim() : undefined;
+
+            if (!action) return null;
+            return { category, action, model, msrp, currency, current_value, previous_value, note, raw_excerpt };
+        })
+        .filter(Boolean)
+        .slice(0, 5);
 }
 
 function extractFeedItems(source, xml, cutoffTime, maxItems = 10) {
@@ -220,25 +264,47 @@ async function callQwen(apiKey, messages, temperature = 0.1) {
 }
 
 async function qwenAnalyzeItem(item, apiKey) {
-    const systemPrompt = `你是一名阿联酋汽车市场新闻标注员。请判断这条新闻是否与 UAE / GCC 汽车市场直接相关，并返回严格 JSON。
+    const systemPrompt = `You are a UAE automotive news screener.
+Judge whether the item is directly relevant to the UAE or GCC automotive market and return strict JSON only.
 
-如果不相关，只返回：
+If not relevant, return:
 {"relevant":false}
 
-如果相关，只返回合法 JSON，不要代码块，不要解释：
+If relevant, return:
 {
   "relevant": true,
-  "brand": "品牌名；政府或监管新闻可写政策相关；不确定写Other",
-  "chineseTitle": "不超过18字的中文标题",
-  "type": "必须是以下之一：Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
-  "summary": "1-2句中文事实摘要，不写建议，不写推测",
-  "tags": ["最多3个标签"]
-}`;
+  "brand": "Brand name, 政策相关, or Other",
+  "chineseTitle": "Chinese headline within 18 chars",
+  "type": "One of: Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
+  "summary": "1-2 sentence factual Chinese summary",
+  "tags": ["up to 3 short tags"],
+  "model": "explicit model name or empty string",
+  "msrp": "explicit list price or empty string",
+  "currency": "AED or empty string",
+  "strategy_signals": [
+    {
+      "category": "price | finance | insurance | trade_in | service | campaign | distribution | inventory | charging | delivery | buyback | fleet | bundle | other",
+      "action": "short factual Chinese description",
+      "model": "explicit model name if stated",
+      "msrp": "explicit list price if stated",
+      "currency": "AED if stated",
+      "current_value": "current offer/value if explicitly stated",
+      "previous_value": "previous offer/value if explicitly stated",
+      "note": "product or scope if explicitly stated",
+      "raw_excerpt": "short source phrase if useful"
+    }
+  ]
+}
+
+Rules:
+- strategy_signals must stay empty unless the source explicitly states a tactic move.
+- Good examples: 0 down payment, cash discount, reduced discount, free insurance, warranty extension, trade-in subsidy, dealer expansion, stock arrival.
+- Do not infer reasons, opportunities, or business impact.`;
 
     try {
         const { response, data } = await callQwen(apiKey, [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `标题: ${item.title}\n摘要: ${item.snippet}\n来源: ${item.source}\n链接: ${item.url}\n日期: ${item.date}` },
+            { role: 'user', content: `Title: ${item.title}\nSnippet: ${item.snippet}\nSource: ${item.source}\nURL: ${item.url}\nDate: ${item.date}` },
         ]);
 
         if (!response.ok) return null;
@@ -256,7 +322,11 @@ async function qwenAnalyzeItem(item, apiKey) {
             type: parsed.type || 'Other',
             title: parsed.chineseTitle || item.title,
             summary: parsed.summary || item.snippet,
-            tags: parsed.tags || [],
+            tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3) : [],
+            model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
+            msrp: typeof parsed.msrp === 'string' ? parsed.msrp.trim() : '',
+            currency: typeof parsed.currency === 'string' ? parsed.currency.trim() : '',
+            strategySignals: normalizeStrategySignals(parsed.strategy_signals),
             url: item.url,
             source: item.source,
         };
@@ -280,25 +350,21 @@ async function generateDigest(items, apiKey) {
         .map(([type, lines]) => `### ${type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `你是一名阿联酋汽车市场情报编辑，请根据输入的已分类新闻生成一份中文日报。
+    const systemPrompt = `You are a UAE automotive market editor.
+Generate a concise Chinese daily digest using only the provided news.
 
-目标：
-1. 只基于输入内容，不补充外部事实。
-2. 输出简洁、可读、适合业务团队晨报。
-3. 只写事实，不写建议，不写行动项。
-
-输出格式要求：
-- 第一行固定为：## 阿联酋汽车市场日报
-- 第二行固定为：**覆盖时间：${dateRange}**
-- 后续按有内容的类别输出小节。
-- 小节标题沿用输入中的类型名称。
-- 每条新闻写成一行短句，保留品牌名。
-- 全文使用中文。
-- 不要输出 JSON，不要输出代码块，不要添加额外前言或结尾。`;
+Rules:
+- The first line must be "# 阿联酋汽车市场日报"
+- The second line must be "*覆盖时间：${dateRange}*"
+- Use Chinese throughout.
+- Keep the writing factual and concise.
+- Do not add recommendations, action items, or external facts.
+- Reuse the provided category names as section headings.
+- Do not return JSON or markdown code fences.`;
 
     const { response, data } = await callQwen(apiKey, [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `请整理以下新闻：\n\n${groupedText}` },
+        { role: 'user', content: `Please summarize the following news:\n\n${groupedText}` },
     ], 0.2);
 
     if (!response.ok) throw new Error(`Qwen digest failed: ${data.message || response.status}`);

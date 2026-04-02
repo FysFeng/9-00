@@ -172,6 +172,10 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         url: result.url || aiImageInput,
         source: 'AI 智能提炼',
         image: finalImage,
+        model: result.model || '',
+        msrp: result.msrp || '',
+        currency: result.currency || '',
+        strategySignals: result.strategy_signals || [],
       });
 
       setAiText('');

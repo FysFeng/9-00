@@ -60,40 +60,77 @@ async function handleAnalyze(req, res, apiKey) {
 }
 
 async function handleDigest(req, res, apiKey) {
-    const { items } = req.body;
+    const { items, startDate, endDate } = req.body;
     if (!items || items.length === 0) {
         return res.status(400).json({ error: 'At least one item is required' });
     }
 
-    const dates = items.map((item) => item.date).filter(Boolean).sort();
-    const dateRange = dates.length > 0 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : new Date().toISOString().split('T')[0];
+    const normalizedStartDate = typeof startDate === 'string' && startDate ? startDate : null;
+    const normalizedEndDate = typeof endDate === 'string' && endDate ? endDate : null;
+
+    const filteredItems = items.filter((item) => {
+        if (normalizedStartDate && item.date < normalizedStartDate) return false;
+        if (normalizedEndDate && item.date > normalizedEndDate) return false;
+        return true;
+    });
+
+    if (filteredItems.length === 0) {
+        return res.status(400).json({ error: 'No items found in the selected date range' });
+    }
+
+    const dates = filteredItems.map((item) => item.date).filter(Boolean).sort();
+    const dateRange = normalizedStartDate && normalizedEndDate
+        ? `${normalizedStartDate} 至 ${normalizedEndDate}`
+        : dates.length > 0
+            ? `${dates[0]} 至 ${dates[dates.length - 1]}`
+            : new Date().toISOString().split('T')[0];
+
+    const typeLabels = {
+        'Launch (Physical)': '新车发布',
+        'Tech & OTA': '技术与配置',
+        'Market & Sales': '市场与销量',
+        'Policy & Regulation': '政策与监管',
+        'Network & Service': '渠道与服务',
+        'Competitor Tactics': '竞品策略',
+        'Corp & Strategy': '企业动向',
+        Other: '其他动态',
+    };
 
     const grouped = {};
-    items.forEach((item) => {
+    filteredItems.forEach((item) => {
         const type = item.type || 'Other';
         if (!grouped[type]) grouped[type] = [];
-        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}: ${item.summary || ''}`);
+        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}：${item.summary || ''}`);
     });
 
     const groupedText = Object.entries(grouped)
-        .map(([type, lines]) => `## ${type}\n${lines.slice(0, 8).join('\n')}`)
+        .map(([type, lines]) => `## ${typeLabels[type] || type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `你是一名阿联酋汽车市场情报编辑，请根据输入的已分类新闻生成一份中文日报。
+    const systemPrompt = `你是一名阿联酋汽车市场情报编辑，请基于输入新闻生成一份自然、简洁、可直接转发的中文简报。
 
-目标：
-1. 只基于输入内容，不补充外部事实。
-2. 输出简洁、可读、适合业务团队晨报。
-3. 只写事实，不写“建议”“影响判断”“行动项”。
+要求：
+1. 只能基于输入内容，不补充外部事实，不做建议，不做因果推断。
+2. 全文使用自然中文，不要保留英文分类标题，不要写成技术说明书。
+3. 输出结构固定为：
+# 阿联酋汽车市场简报
+覆盖时间：${dateRange}
 
-输出格式要求：
-- 第一行固定为：## 阿联酋汽车市场日报
-- 第二行固定为：**覆盖时间：${dateRange}**
-- 后续按有内容的类别输出小节。
-- 小节标题沿用输入中的类型名称。
-- 每条新闻写成一行短句，保留品牌名。
-- 全文使用中文。
-- 不要输出 JSON，不要输出代码块，不要添加额外前言或结尾。`;
+一、今日要点
+- 用2到4条总结最值得关注的变化，每条一句话。
+
+二、分类动态
+- 按输入中存在内容的类别输出小标题，标题必须是中文，例如“市场与销量”“新车发布”“竞品策略”。
+- 每个小标题下写2到4条短句，保留品牌名和关键信息。
+
+三、一句话观察
+- 用1到2句话做中性总结，只总结市场发生了什么，不写建议。
+
+额外规则：
+- 不要输出 Markdown 三级标题，不要出现“### Market & Sales”这类英文标题。
+- 不要直接照搬输入分类名，必须转成自然中文。
+- 每条尽量短，读起来像晨报，不像数据库导出。
+- 不要输出 JSON，不要输出代码块。`;
 
     const { response, data } = await callQwen(
         apiKey,

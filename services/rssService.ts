@@ -1,4 +1,4 @@
-import { NewsItem, NewsType } from '../types';
+import { NewsItem, NewsType, StrategySignal } from '../types';
 
 export interface RawRSSItem {
     source: string;
@@ -28,6 +28,23 @@ const ALLOWED_TYPES = [
     NewsType.OTHER,
 ];
 
+const ALLOWED_SIGNAL_CATEGORIES = new Set<StrategySignal['category']>([
+    'price',
+    'finance',
+    'insurance',
+    'trade_in',
+    'service',
+    'campaign',
+    'distribution',
+    'inventory',
+    'charging',
+    'delivery',
+    'buyback',
+    'fleet',
+    'bundle',
+    'other',
+]);
+
 function extractJsonObject(rawContent: string): string {
     const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
     const start = cleaned.indexOf('{');
@@ -35,31 +52,70 @@ function extractJsonObject(rawContent: string): string {
     return start !== -1 && end !== -1 ? cleaned.slice(start, end + 1) : cleaned;
 }
 
+function normalizeStrategySignals(signals: unknown): StrategySignal[] {
+    if (!Array.isArray(signals)) return [];
+
+    return signals
+        .map((signal) => {
+            if (!signal || typeof signal !== 'object') return null;
+            const raw = signal as Record<string, unknown>;
+            const category = typeof raw.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(raw.category as StrategySignal['category'])
+                ? raw.category as StrategySignal['category']
+                : 'other';
+            const action = typeof raw.action === 'string' ? raw.action.trim() : '';
+            const model = typeof raw.model === 'string' ? raw.model.trim() : undefined;
+            const msrp = typeof raw.msrp === 'string' ? raw.msrp.trim() : undefined;
+            const currency = typeof raw.currency === 'string' ? raw.currency.trim() : undefined;
+            const current_value = typeof raw.current_value === 'string' ? raw.current_value.trim() : undefined;
+            const previous_value = typeof raw.previous_value === 'string' ? raw.previous_value.trim() : undefined;
+            const note = typeof raw.note === 'string' ? raw.note.trim() : undefined;
+            const raw_excerpt = typeof raw.raw_excerpt === 'string' ? raw.raw_excerpt.trim() : undefined;
+
+            if (!action) return null;
+            return { category, action, model, msrp, currency, current_value, previous_value, note, raw_excerpt };
+        })
+        .filter((signal): signal is StrategySignal => Boolean(signal))
+        .slice(0, 5);
+}
+
 async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
-    const systemPrompt = `你是一名阿联酋汽车市场新闻标注员。你的任务是判断新闻是否与 UAE / GCC 汽车市场直接相关，并输出严格 JSON。
+    const systemPrompt = `You are a UAE automotive news screener.
+Judge whether the item is directly relevant to the UAE or GCC automotive market and return strict JSON only.
 
-判定为相关，必须同时满足：
-1. 新闻明确涉及 UAE、Dubai、Abu Dhabi、GCC、Middle East 汽车市场，或者明确描述将在 UAE / GCC 落地的汽车动作。
-2. 新闻属于汽车行业实质事件，例如：车型上市、价格、销量、经销网络、充电设施、政策、企业合作、促销动作。
-
-直接判定为不相关：
-- 仅涉及欧美、中国本土、东南亚等其他市场，且未说明 UAE / GCC 关联。
-- 资本市场、股价、管理层人事、娱乐营销、体育赞助。
-- 二手车挂牌、分类广告、个人卖车信息。
-- 文中没有足够信息判断品牌或事件。
-
-如果不相关，只返回：
+If not relevant, return:
 {"relevant":false}
 
-如果相关，只返回合法 JSON，不要代码块，不要解释：
+If relevant, return:
 {
   "relevant": true,
-  "brand": "品牌名；若是政府/监管新闻可写政策相关；不确定则写Other",
-  "chineseTitle": "不超过18字的中文标题",
-  "type": "必须是以下之一：Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
-  "summary": "1-2句中文事实摘要，不写建议，不写长安视角，不写推测",
-  "tags": ["最多3个中文或英文短标签"]
-}`;
+  "brand": "Brand name, 政策相关, or Other",
+  "chineseTitle": "Chinese headline within 18 chars",
+  "type": "One of: Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
+  "summary": "1-2 sentence factual Chinese summary with no recommendation or inference",
+  "tags": ["up to 3 short tags"],
+  "model": "explicit model name or empty string",
+  "msrp": "explicit list price or empty string",
+  "currency": "AED or empty string",
+  "strategy_signals": [
+    {
+      "category": "price | finance | insurance | trade_in | service | campaign | distribution | inventory | charging | delivery | buyback | fleet | bundle | other",
+      "action": "short factual Chinese description",
+      "model": "explicit model name if stated",
+      "msrp": "explicit list price if stated",
+      "currency": "AED if stated",
+      "current_value": "current offer/value if explicitly stated",
+      "previous_value": "previous offer/value if explicitly stated",
+      "note": "product or scope if explicitly stated",
+      "raw_excerpt": "short source phrase if useful"
+    }
+  ]
+}
+
+Rules:
+- Only include strategy_signals when the source explicitly describes a concrete tactic move.
+- Good examples: 0 down payment, AED 45,000 cash discount, discount reduced from AED 50,000 to AED 45,000, free insurance, extended warranty, trade-in bonus, dealer expansion, stock arrival.
+- Do not guess product names, old prices, reasons, or business implications.
+- Summary must stay factual.`;
 
     try {
         const response = await fetch('/api/ai?action=analyze', {
@@ -67,7 +123,7 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: systemPrompt,
-                text: `标题: ${item.title}\n摘要: ${item.snippet}\n来源: ${item.source}\n链接: ${item.url}\n日期: ${item.date}`,
+                text: `Title: ${item.title}\nSnippet: ${item.snippet}\nSource: ${item.source}\nURL: ${item.url}\nDate: ${item.date}`,
             }),
         });
 
@@ -91,6 +147,10 @@ async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
             title: parsed.chineseTitle || item.title,
             summary: parsed.summary || item.snippet,
             tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3) : [],
+            model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
+            msrp: typeof parsed.msrp === 'string' ? parsed.msrp.trim() : '',
+            currency: typeof parsed.currency === 'string' ? parsed.currency.trim() : '',
+            strategySignals: normalizeStrategySignals(parsed.strategy_signals),
             url: item.url,
             source: item.source,
         };
@@ -129,11 +189,11 @@ export async function fetchAndScreenRSS(
     return { imported, skipped, total: items.length };
 }
 
-export async function generateDailyDigest(items: NewsItem[]): Promise<string> {
+export async function generateDailyDigest(items: NewsItem[], options?: { startDate?: string; endDate?: string }): Promise<string> {
     const response = await fetch('/api/ai?action=digest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, ...options }),
     });
 
     if (!response.ok) throw new Error('Digest generation failed');

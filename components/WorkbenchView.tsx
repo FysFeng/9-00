@@ -10,6 +10,8 @@ function DigestTab({ items }: { items: NewsItem[] }) {
     const [digest, setDigest] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [webhookUrl, setWebhookUrl] = useState('');
     const [webhookType, setWebhookType] = useState('wechat');
     const [pushState, setPushState] = useState<'idle' | 'pushing' | 'success' | 'error'>('idle');
@@ -17,7 +19,12 @@ function DigestTab({ items }: { items: NewsItem[] }) {
 
     const handleGenerate = async () => {
         if (items.length === 0) {
-            setError('暂无资讯数据，请先在左侧入口完成采集或录入。');
+            setError('暂无资讯数据，请先完成采集或录入。');
+            return;
+        }
+
+        if (startDate && endDate && startDate > endDate) {
+            setError('开始日期不能晚于结束日期。');
             return;
         }
 
@@ -25,19 +32,20 @@ function DigestTab({ items }: { items: NewsItem[] }) {
         setError('');
 
         try {
-            const sortedItems = [...items].sort((a, b) => b.date.localeCompare(a.date));
-            if (sortedItems.length === 0) throw new Error('无数据');
-            const latestDateStr = sortedItems[0].date;
-
-            const recentItems = sortedItems.filter((item) => {
-                const diff = new Date(latestDateStr).getTime() - new Date(item.date).getTime();
-                return diff <= 24 * 60 * 60 * 1000;
+            const filteredItems = items.filter((item) => {
+                if (startDate && item.date < startDate) return false;
+                if (endDate && item.date > endDate) return false;
+                return true;
             });
 
-            const result = await generateDailyDigest(recentItems);
+            if (filteredItems.length === 0) {
+                throw new Error('所选时间段内没有可用于生成简报的资讯。');
+            }
+
+            const result = await generateDailyDigest(filteredItems, { startDate, endDate });
             setDigest(result);
         } catch (e: any) {
-            setError(e.message || '生成失败，请稍后重试');
+            setError(e.message || '生成失败，请稍后重试。');
         } finally {
             setLoading(false);
             setPushState('idle');
@@ -45,9 +53,15 @@ function DigestTab({ items }: { items: NewsItem[] }) {
     };
 
     const handlePush = async () => {
+        if (!digest) {
+            setPushState('error');
+            setPushMessage('请先生成简报。');
+            return;
+        }
+
         if (!webhookUrl) {
             setPushState('error');
-            setPushMessage('请输入企业微信 / 钉钉 / 飞书 Webhook URL');
+            setPushMessage('请输入企业微信、钉钉或飞书 Webhook URL。');
             return;
         }
 
@@ -74,7 +88,28 @@ function DigestTab({ items }: { items: NewsItem[] }) {
         <div className="space-y-5">
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
                 <p className="font-semibold text-slate-700 mb-1">每日简报</p>
-                <p>基于系统内已有资讯生成中文日报，适合晨会同步与群内转发。</p>
+                <p>按你指定的时间范围生成中文简报，适合晨会同步或直接转发到群聊。</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 uppercase mb-1">开始日期</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 uppercase mb-1">结束日期</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                    />
+                </div>
             </div>
 
             <button
@@ -82,7 +117,7 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                 disabled={loading}
                 className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2"
             >
-                {loading ? '生成中...' : '生成今日简报'}
+                {loading ? '生成中...' : '生成简报'}
             </button>
 
             {error && (
@@ -95,8 +130,8 @@ function DigestTab({ items }: { items: NewsItem[] }) {
                 <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm animate-fadeIn">
                     <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between border-b-4 border-red-600">
                         <div>
-                            <div className="text-sm font-bold tracking-tight">阿联酋汽车市场日报</div>
-                            <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Daily Intelligence Report</div>
+                            <div className="text-sm font-bold tracking-tight">阿联酋汽车市场简报</div>
+                            <div className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Briefing Preview</div>
                         </div>
                         <button
                             onClick={() => navigator.clipboard.writeText(digest)}
@@ -164,7 +199,7 @@ export default function WorkbenchView() {
                     资讯管理
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-semibold">Admin</span>
                 </h2>
-                <p className="text-slate-400 text-sm mt-1">统一处理采集、AI 提炼、手动录入与日报生成。</p>
+                <p className="text-slate-400 text-sm mt-1">统一处理采集、AI 提炼、手动录入与简报生成。</p>
             </div>
 
             <div className="flex gap-1 mb-7 bg-slate-100 p-1 rounded-lg w-fit">
