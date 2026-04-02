@@ -8,6 +8,13 @@
 
 const QWEN_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
 
+function extractJsonObject(rawContent) {
+    const cleaned = String(rawContent || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+    const firstOpen = cleaned.indexOf('{');
+    const lastClose = cleaned.lastIndexOf('}');
+    return firstOpen !== -1 && lastClose !== -1 ? cleaned.slice(firstOpen, lastClose + 1) : cleaned;
+}
+
 async function callQwen(apiKey, messages, temperature = 0.1) {
     const controller = new AbortController();
     const timerId = setTimeout(() => controller.abort(), 60000);
@@ -100,36 +107,41 @@ async function handleDigest(req, res, apiKey) {
     filteredItems.forEach((item) => {
         const type = item.type || 'Other';
         if (!grouped[type]) grouped[type] = [];
-        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}：${item.summary || ''}`);
+        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}`);
     });
 
     const groupedText = Object.entries(grouped)
         .map(([type, lines]) => `## ${typeLabels[type] || type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `你是一名阿联酋汽车市场资讯编辑。请把输入新闻整理成一份中文分组清单。
+    const systemPrompt = `你是一名阿联酋汽车市场资讯整理助手。
+请基于输入新闻，输出严格 JSON，用于生成“中文分组清单”。
 
-输出格式固定为：
-# 阿联酋汽车市场简报
-覆盖时间：${dateRange}
+任务目标：
+1. 只做整理和重写，不做分析，不做总结，不做结论。
+2. 每条输入新闻最多对应一条清单内容。
+3. 输出内容必须完全基于输入，不得补充外部事实，不得推断品牌机会、市场接受度、竞争影响或战略意义。
+4. 如果输入里没有提到某个品牌，就绝对不要新增提到该品牌。
+5. 特别禁止生成类似“成本优势显著推动某品牌接受度提升”“对某品牌形成机会”这种推断句。
 
-新车发布
-1. ...
-2. ...
+输出 JSON 结构：
+{
+  "sections": [
+    {
+      "title": "新车发布",
+      "items": [
+        "品牌A发布了某车型，重点信息是……",
+        "品牌B推出了……"
+      ]
+    }
+  ]
+}
 
-市场与销量
-1. ...
-
-写作要求：
-1. 这是一份“分组清单”，不是分析报告，也不是晨会评论。
-2. 只做汇总和罗列，不写观察，不写结论，不写今日要点，不写建议。
-3. 按输入中已有内容分组，分组标题必须使用自然中文，例如“新车发布”“市场与销量”“竞品策略”。
-4. 每组下面使用阿拉伯数字编号，从 1 开始逐条罗列。
-5. 每条只保留一条新闻的核心信息，写成一句简洁中文。
-6. 保留品牌名、车型名、关键数字或动作，但不要扩写，不要推断。
-7. 不要输出英文分类标题，不要出现“### Market & Sales”这种格式。
-8. 不要输出“今日要点”“一句话观察”“总结”“结论”等任何额外板块。
-9. 不要输出 JSON，不要输出代码块。`;
+规则：
+1. title 必须是自然中文分组名，例如“新车发布”“市场与销量”“技术与配置”“竞品策略”“政策与监管”“渠道与服务”“企业动向”“其他动态”。
+2. items 里的每一条都必须是一句简洁中文，只罗列新闻事实。
+3. 可以合并同一条新闻中的短信息，但不能把多条新闻混写成一句判断。
+4. 不要输出 markdown，不要输出代码块，不要输出 JSON 之外的任何内容。`;
 
     const { response, data } = await callQwen(
         apiKey,
@@ -144,7 +156,32 @@ async function handleDigest(req, res, apiKey) {
         throw new Error(data.message || 'Failed to generate digest');
     }
 
-    const digest = data.output?.choices?.[0]?.message?.content || '';
+    const rawContent = data.output?.choices?.[0]?.message?.content || '';
+    const parsed = JSON.parse(extractJsonObject(rawContent));
+    const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
+
+    const lines = [
+        '# 阿联酋汽车市场简报',
+        `覆盖时间：${dateRange}`,
+        '',
+    ];
+
+    sections.forEach((section) => {
+        const title = typeof section?.title === 'string' ? section.title.trim() : '';
+        const items = Array.isArray(section?.items)
+            ? section.items.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
+            : [];
+
+        if (!title || items.length === 0) return;
+
+        lines.push(title);
+        items.forEach((item, index) => {
+            lines.push(`${index + 1}. ${item}`);
+        });
+        lines.push('');
+    });
+
+    const digest = lines.join('\n').trim();
     return res.status(200).json({ success: true, digest });
 }
 
