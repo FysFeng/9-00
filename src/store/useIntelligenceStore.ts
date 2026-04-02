@@ -35,6 +35,65 @@ interface IntelligenceStore {
     updateBrands: (brands: string[]) => Promise<void>;
 }
 
+const normalizeText = (value: string = '') =>
+    value
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const normalizeUrl = (rawUrl: string = '') => {
+    if (!rawUrl) return '';
+    try {
+        const parsed = new URL(rawUrl);
+        parsed.hash = '';
+        parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+
+        const blockedParams = new Set([
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+            'fbclid', 'gclid', 'igshid', 'mc_cid', 'mc_eid', 'ref', 'ref_src',
+            'guccounter', 'guce_referrer', 'guce_referrer_sig',
+        ]);
+
+        [...parsed.searchParams.keys()].forEach((key) => {
+            if (blockedParams.has(key.toLowerCase())) parsed.searchParams.delete(key);
+        });
+
+        parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+        parsed.search = parsed.searchParams.toString() ? `?${parsed.searchParams.toString()}` : '';
+        return parsed.toString();
+    } catch {
+        return rawUrl.trim();
+    }
+};
+
+const buildUrlKey = (item: Pick<NewsItem, 'url'>) => normalizeUrl(item.url || '');
+
+const buildTitleKey = (item: Pick<NewsItem, 'title' | 'date' | 'brand'>) =>
+    `${normalizeText(item.title)}::${item.date || ''}::${normalizeText(item.brand || '')}`;
+
+const dedupeNewsItems = (items: NewsItem[]) => {
+    const seenUrl = new Set<string>();
+    const seenTitle = new Set<string>();
+    const result: NewsItem[] = [];
+
+    for (const item of items) {
+        const urlKey = buildUrlKey(item);
+        const titleKey = buildTitleKey(item);
+
+        if (urlKey && seenUrl.has(urlKey)) continue;
+        if (seenTitle.has(titleKey)) continue;
+
+        if (urlKey) seenUrl.add(urlKey);
+        seenTitle.add(titleKey);
+        result.push(item);
+    }
+
+    return result;
+};
+
 // 核心圈层定义
 export const CHALLENGER_BRANDS = [
     "BYD 比亚迪", "Geely 吉利", "Chery 奇瑞", "GWM 长城", "Jetour 捷途",
@@ -121,7 +180,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
             ]));
 
             set({
-                rawIntelligence: mappedNewsData.length > 0 ? mappedNewsData : INITIAL_NEWS,
+                rawIntelligence: mappedNewsData.length > 0 ? dedupeNewsItems(mappedNewsData) : INITIAL_NEWS,
                 customBrands: mergedBrands,
                 isLoading: false
             });
@@ -141,7 +200,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         set({ isSaving: true });
 
         const newItem = { ...item, id: Math.random().toString(36).substring(2, 15) };
-        const updated = [newItem, ...rawIntelligence];
+        const updated = dedupeNewsItems([newItem, ...rawIntelligence]);
 
         // Optimistic Update
         set({ rawIntelligence: updated });
@@ -166,7 +225,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     addBatchIntelligence: async (items) => {
         const { rawIntelligence } = get();
         set({ isSaving: true });
-        const updated = [...items, ...rawIntelligence];
+        const updated = dedupeNewsItems([...items, ...rawIntelligence]);
         set({ rawIntelligence: updated });
         try {
             const res = await fetch('/api/data?type=news', {

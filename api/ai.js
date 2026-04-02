@@ -1,16 +1,16 @@
 /**
- * /api/ai.js  ─  merged AI handler (Qwen proxy + digest generator)
+ * /api/ai.js
  *
  * Routes:
- *   POST /api/ai?action=analyze   → formerly /api/analyze (accepts { text, prompt })
- *   POST /api/ai?action=digest    → formerly /api/digest  (accepts { items })
+ *   POST /api/ai?action=analyze
+ *   POST /api/ai?action=digest
  */
 
 const QWEN_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
 
 async function callQwen(apiKey, messages, temperature = 0.1) {
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 60000);
+    const timerId = setTimeout(() => controller.abort(), 60000);
 
     try {
         const response = await fetch(QWEN_URL, {
@@ -22,15 +22,19 @@ async function callQwen(apiKey, messages, temperature = 0.1) {
             body: JSON.stringify({
                 model: 'qwen-plus',
                 input: { messages },
-                parameters: { result_format: 'message', temperature, top_p: 0.8 },
+                parameters: {
+                    result_format: 'message',
+                    temperature,
+                    top_p: 0.8,
+                },
             }),
             signal: controller.signal,
         });
-        clearTimeout(tid);
+        clearTimeout(timerId);
         return { response, data: await response.json() };
-    } catch (err) {
-        clearTimeout(tid);
-        throw err;
+    } catch (error) {
+        clearTimeout(timerId);
+        throw error;
     }
 }
 
@@ -38,90 +42,76 @@ async function handleAnalyze(req, res, apiKey) {
     const { text, prompt } = req.body;
     const { response, data } = await callQwen(
         apiKey,
-        [{ role: 'system', content: prompt }, { role: 'user', content: `News Text: ${text}` }],
+        [
+            { role: 'system', content: prompt },
+            {
+                role: 'user',
+                content: `Analyze the following input.\n<input>\n${text || ''}\n</input>`,
+            },
+        ],
         0.1,
     );
+
     if (!response.ok) {
-        throw new Error(data.message || data.code || 'AI 服务响应异常');
+        throw new Error(data.message || data.code || 'AI service returned an error');
     }
+
     return res.status(200).json(data);
 }
 
 async function handleDigest(req, res, apiKey) {
     const { items } = req.body;
     if (!items || items.length === 0) {
-        return res.status(400).json({ error: '请传入至少一条资讯' });
+        return res.status(400).json({ error: 'At least one item is required' });
     }
 
-    // 计算时间范围
-    const dates = items.map(i => i.date).filter(Boolean).sort();
+    const dates = items.map((item) => item.date).filter(Boolean).sort();
     const dateRange = dates.length > 0 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : new Date().toISOString().split('T')[0];
 
-    // 按资讯类型分组，并格式化给 AI
     const grouped = {};
-    items.forEach(item => {
+    items.forEach((item) => {
         const type = item.type || 'Other';
         if (!grouped[type]) grouped[type] = [];
-        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}：${item.summary || ''}`);
+        grouped[type].push(`- [${item.brand || '市场'}] ${item.title}: ${item.summary || ''}`);
     });
 
     const groupedText = Object.entries(grouped)
-        .map(([type, lines]) => `### ${type}\n${lines.slice(0, 8).join('\n')}`)
+        .map(([type, lines]) => `## ${type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `你是中东汽车市场信息整理员。请根据以下已按资讯类型分组的市场信息，生成一份简洁的【阿联酋每日信息简报】。
+    const systemPrompt = `你是一名阿联酋汽车市场情报编辑，请根据输入的已分类新闻生成一份中文日报。
 
-【输出格式要求】（严格遵守，不可更改分类）：
+目标：
+1. 只基于输入内容，不补充外部事实。
+2. 输出简洁、可读、适合业务团队晨报。
+3. 只写事实，不写“建议”“影响判断”“行动项”。
 
-## 阿联酋每日信息简报
-**信息覆盖时间：${dateRange}**
-
-对于以下每个有内容的资讯类型，生成一个小节。无内容的类型直接省略：
-
-### 新车发布
-（本周期内有哪些品牌发布了新车型？）
-
-### 技术与OTA
-（技术层面的重要动作，如智能化升级、电动化进展）
-
-### 销量与市场
-（各品牌的销量表现与市场行情）
-
-### 政策与法规
-（阿联酋/海湾地区出台了哪些汽车行业相关政策？）
-
-### 渠道与售后
-（经销商扩张、服务网络更新）
-
-### 竞品动态
-（竞品在价格、促销、服务上的动作）
-
-### 企业动态
-（品牌层面的战略合作、市场定位调整）
-
-【规则】：
-1. 每小节列出 2-4 条新闻事实，每条必须包含品牌名。
-2. 只陈述事实，不加主观分析、不写"影响"或"So What"。
-3. 语言简洁，每条不超过 30 字。
-4. 若某类型没有相关情报，直接跳过该小节。
-5. 结尾不需要执行要点或行动建议。`;
+输出格式要求：
+- 第一行固定为：## 阿联酋汽车市场日报
+- 第二行固定为：**覆盖时间：${dateRange}**
+- 后续按有内容的类别输出小节。
+- 小节标题沿用输入中的类型名称。
+- 每条新闻写成一行短句，保留品牌名。
+- 全文使用中文。
+- 不要输出 JSON，不要输出代码块，不要添加额外前言或结尾。`;
 
     const { response, data } = await callQwen(
         apiKey,
         [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `以下是已分组的情报列表：\n\n${groupedText}` },
+            { role: 'user', content: `请整理以下新闻：\n\n${groupedText}` },
         ],
-        0.3,
+        0.2,
     );
 
-    if (!response.ok) throw new Error(data.message || '调用 Qwen 失败');
+    if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate digest');
+    }
 
     const digest = data.output?.choices?.[0]?.message?.content || '';
     return res.status(200).json({ success: true, digest });
 }
 
-// ── Main Handler ────────────────────────────────────────────────────
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -131,7 +121,7 @@ export default async function handler(req, res) {
 
     const apiKey = process.env.DASHSCOPE_API_KEY;
     if (!apiKey || apiKey.startsWith('sk-xxxx')) {
-        return res.status(503).json({ error: '服务器配置错误: 未设置 DASHSCOPE_API_KEY 环境变量。' });
+        return res.status(503).json({ error: 'DASHSCOPE_API_KEY is not configured' });
     }
 
     const action = req.query.action || '';
@@ -140,11 +130,11 @@ export default async function handler(req, res) {
         if (action === 'analyze') return await handleAnalyze(req, res, apiKey);
         if (action === 'digest') return await handleDigest(req, res, apiKey);
         return res.status(400).json({ error: 'Missing query param: action=analyze|digest' });
-    } catch (err) {
-        console.error('[/api/ai]', err);
-        if (err.name === 'AbortError') {
-            return res.status(504).json({ error: '服务器连接 AI 超时 (60s)，请稍后重试。' });
+    } catch (error) {
+        console.error('[/api/ai]', error);
+        if (error.name === 'AbortError') {
+            return res.status(504).json({ error: 'AI request timed out after 60 seconds' });
         }
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: error.message });
     }
 }

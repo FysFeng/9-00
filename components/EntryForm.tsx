@@ -21,9 +21,9 @@ interface PendingItem {
 interface RssItem {
   source: string;
   title: string;
-  link: string;
-  pubDate: string;
-  description: string;
+  url: string;
+  date: string;
+  snippet: string;
 }
 
 const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
@@ -31,25 +31,42 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Spider / Inbox State ---
   const [spiderUrl, setSpiderUrl] = useState('');
   const [isSpidering, setIsSpidering] = useState(false);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [processingPendingId, setProcessingPendingId] = useState<string | null>(null);
 
-  // --- RSS Radar State ---
   const [rssItems, setRssItems] = useState<RssItem[]>([]);
   const [isScanningRss, setIsScanningRss] = useState(false);
   const [showRss, setShowRss] = useState(false);
-  const [rssDays, setRssDays] = useState(3); // Default to last 3 days
+  const [rssDays, setRssDays] = useState(3);
 
-  // Load pending items on mount or tab change
+  const [formData, setFormData] = useState({
+    title: '',
+    summary: '',
+    brand: availableBrands[0] || '',
+    type: NewsType.OTHER,
+    date: new Date().toISOString().split('T')[0],
+    url: '',
+    source: '人工录入',
+    image: '',
+  });
+
+  const [aiText, setAiText] = useState('');
+  const [aiImageInput, setAiImageInput] = useState('');
+
   useEffect(() => {
     if (activeTab === 'spider') {
-      fetchPendingItems();
+      void fetchPendingItems();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (availableBrands.length > 0 && !availableBrands.includes(formData.brand)) {
+      setFormData((prev) => ({ ...prev, brand: availableBrands[0] }));
+    }
+  }, [availableBrands, formData.brand]);
 
   const fetchPendingItems = async () => {
     setIsLoadingList(true);
@@ -60,7 +77,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         setPendingItems(data);
       }
     } catch (e) {
-      console.error("Failed to load pending items", e);
+      console.error('Failed to load pending items', e);
     } finally {
       setIsLoadingList(false);
     }
@@ -69,23 +86,18 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
   const handleRssScan = async () => {
     setIsScanningRss(true);
     setError(null);
-    setRssItems([]); // Clear previous results while scanning
+    setRssItems([]);
     try {
       const res = await fetch(`/api/collect?action=rss&days=${rssDays}`);
-      if (!res.ok) throw new Error("RSS 扫描失败");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '扫描失败');
       setRssItems(data.items || []);
       setShowRss(true);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || '扫描失败');
     } finally {
       setIsScanningRss(false);
     }
-  };
-
-  const handleImportRss = (url: string) => {
-    setSpiderUrl(url);
-    handleSpiderSubmit(url); // Auto-trigger spider
   };
 
   const handleSpiderSubmit = async (urlToSpider?: string) => {
@@ -98,71 +110,45 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
       const res = await fetch('/api/collect?action=spider', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl })
+        body: JSON.stringify({ url: targetUrl }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "抓取失败");
+      if (!res.ok) throw new Error(data.error || '抓取失败');
 
       setSpiderUrl('');
-      fetchPendingItems(); // Refresh list to show new item
-
-      // If it was from RSS list, maybe remove it from UI? For now keep it.
+      await fetchPendingItems();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || '抓取失败');
     } finally {
       setIsSpidering(false);
     }
   };
 
   const handleDeletePending = async (id: string) => {
-    // Optimistic UI update
-    setPendingItems(prev => prev.filter(i => i.id !== id));
+    setPendingItems((prev) => prev.filter((item) => item.id !== id));
     try {
       await fetch(`/api/collect?action=pending&id=${id}`, { method: 'DELETE' });
     } catch (e) {
-      console.error("Delete failed", e);
+      console.error('Delete failed', e);
     }
   };
 
   const handleProcessPending = (item: PendingItem) => {
-    setAiText(item.text); // Fill AI text area with full body
-    setAiImageInput(item.url); // Suggest original URL as image source
-    setActiveTab('ai'); // Switch to analysis tab
-    setProcessingPendingId(item.id); // Mark this ID to be deleted after success
+    setAiText(item.text);
+    setAiImageInput(item.url);
+    setActiveTab('ai');
+    setProcessingPendingId(item.id);
     setError(null);
   };
 
-  // --- Manual Form State ---
-  const [formData, setFormData] = useState({
-    title: '',
-    summary: '',
-    brand: availableBrands[0] || '',
-    type: NewsType.OTHER,
-    date: new Date().toISOString().split('T')[0],
-    url: '',
-    source: '人工录入',
-    image: ''
-  });
-
-  useEffect(() => {
-    if (availableBrands.length > 0 && !availableBrands.includes(formData.brand)) {
-      setFormData(prev => ({ ...prev, brand: availableBrands[0] }));
-    }
-  }, [availableBrands]);
-
-  // --- AI Form State ---
-  const [aiText, setAiText] = useState('');
-  const [aiImageInput, setAiImageInput] = useState('');
-
-  const generateImageUrl = (prompt: string) => {
-    return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
-  };
+  const generateImageUrl = (prompt: string) =>
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=600&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalImage = formData.image.trim() || generateImageUrl(`${formData.brand} ${formData.title} automotive`);
     onAdd({ ...formData, image: finalImage });
-    setFormData(prev => ({ ...prev, title: '', summary: '', url: '', image: '' }));
+    setFormData((prev) => ({ ...prev, title: '', summary: '', url: '', image: '' }));
   };
 
   const handleAiAnalyze = async () => {
@@ -173,7 +159,6 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
 
     try {
       const result = await analyzeTextWithQwen(aiText, availableBrands);
-
       const finalImage = aiImageInput.trim()
         ? aiImageInput.trim()
         : generateImageUrl(result.image_keywords || `${result.brand} car news`);
@@ -185,22 +170,20 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
         type: result.type as NewsType,
         date: result.date,
         url: result.url || aiImageInput,
-        source: 'AI 智能提取 (Qwen)',
-        image: finalImage
+        source: 'AI 智能提炼',
+        image: finalImage,
       });
 
       setAiText('');
       setAiImageInput('');
 
-      // Auto-delete from pending if this came from the spider inbox
       if (processingPendingId) {
-        handleDeletePending(processingPendingId);
+        await handleDeletePending(processingPendingId);
         setProcessingPendingId(null);
       }
-
     } catch (err: any) {
-      console.error("Analysis Error:", err);
-      setError(err.message || "分析失败");
+      console.error('Analysis Error:', err);
+      setError(err.message || '分析失败');
     } finally {
       setIsProcessing(false);
     }
@@ -208,7 +191,6 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Tabs */}
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveTab('spider')}
@@ -217,9 +199,11 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
             : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
-          <span>📥</span> 自动采集箱
+          <span>采集箱</span>
           {pendingItems.length > 0 && (
-            <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{pendingItems.length}</span>
+            <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+              {pendingItems.length}
+            </span>
           )}
         </button>
         <button
@@ -229,7 +213,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
             : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
-          🤖 销售情报 AI 提炼
+          AI 提炼
         </button>
         <button
           onClick={() => setActiveTab('manual')}
@@ -238,30 +222,24 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
             : 'bg-slate-50 text-slate-500 hover:text-slate-700'
             }`}
         >
-          ✍️ 手动录入
+          手动录入
         </button>
       </div>
 
       <div className="p-6">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded text-red-600 text-sm flex items-center gap-2">
-            <span>⚠️ {error}</span>
+          <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded text-red-600 text-sm">
+            {error}
           </div>
         )}
 
-        {/* --- SPIDER TAB (Inbox) --- */}
         {activeTab === 'spider' && (
           <div className="space-y-6">
-
-            {/* 1. RSS Radar Section */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 rounded-lg text-white shadow-lg">
               <div className="flex justify-between items-center mb-3">
                 <div>
-                  <h3 className="text-sm font-bold flex items-center gap-2">
-                    📡 全网雷达 (RSS Scanner)
-                    {isScanningRss && <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">聚合 DriveArabia, GulfNews, YallaMotor 最新资讯</p>
+                  <h3 className="text-sm font-bold flex items-center gap-2">全网雷达</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">扫描 RSS / X 镜像 / Google News 源并放入采集箱</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <select
@@ -288,24 +266,30 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-800/50 rounded p-2 border border-slate-700">
                   {rssItems.length === 0 ? (
                     <div className="text-center text-xs text-slate-500 py-4">
-                      在过去 {rssDays} 天内未发现新资讯。<br />建议尝试切换到更大的时间范围。
+                      过去 {rssDays} 天内未发现新资讯。<br />建议尝试扩大扫描时间范围。
                     </div>
                   ) : (
                     rssItems.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center gap-2 p-2 hover:bg-slate-700/50 rounded group transition-colors">
+                      <div key={`${item.url}-${idx}`} className="flex justify-between items-center gap-2 p-2 hover:bg-slate-700/50 rounded group transition-colors">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="text-[9px] bg-slate-600 px-1 rounded text-slate-200">{item.source}</span>
-                            <span className="text-[9px] text-slate-400">{item.pubDate}</span>
+                            <span className="text-[9px] text-slate-400">{item.date}</span>
                           </div>
-                          <a href={item.link} target="_blank" rel="noreferrer" className="text-xs text-slate-200 truncate block hover:text-blue-400 hover:underline">{item.title}</a>
+                          <a href={item.url} target="_blank" rel="noreferrer" className="text-xs text-slate-200 truncate block hover:text-blue-400 hover:underline">
+                            {item.title}
+                          </a>
+                          {item.snippet && <p className="text-[10px] text-slate-400 truncate mt-1">{item.snippet}</p>}
                         </div>
                         <button
-                          onClick={() => handleImportRss(item.link)}
+                          onClick={() => {
+                            setSpiderUrl(item.url);
+                            void handleSpiderSubmit(item.url);
+                          }}
                           className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-all"
-                          title="抓取并存入采集箱"
+                          title="抓取并放入采集箱"
                         >
-                          ⬇️ 抓取
+                          抓取
                         </button>
                       </div>
                     ))
@@ -314,7 +298,6 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
               )}
             </div>
 
-            {/* 2. Manual Fetch Input */}
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">或手动粘贴链接</label>
               <div className="flex gap-2">
@@ -326,32 +309,30 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                   onChange={(e) => setSpiderUrl(e.target.value)}
                 />
                 <button
-                  onClick={() => handleSpiderSubmit()}
+                  onClick={() => void handleSpiderSubmit()}
                   disabled={isSpidering || !spiderUrl}
-                  className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors ${isSpidering ? 'bg-slate-400' : 'bg-slate-800 hover:bg-slate-900'
-                    }`}
+                  className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors ${isSpidering ? 'bg-slate-400' : 'bg-slate-800 hover:bg-slate-900'}`}
                 >
                   {isSpidering ? '抓取中...' : '抓取'}
                 </button>
               </div>
             </div>
 
-            {/* 3. Pending List (Existing Code) */}
             <div>
               <h3 className="text-sm font-bold text-slate-700 mb-3 flex justify-between items-center">
                 采集箱 ({pendingItems.length})
-                <button onClick={fetchPendingItems} className="text-xs text-blue-500 hover:underline">
+                <button onClick={() => void fetchPendingItems()} className="text-xs text-blue-500 hover:underline">
                   {isLoadingList ? '加载中...' : '刷新列表'}
                 </button>
               </h3>
 
               {pendingItems.length === 0 ? (
                 <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                  {isLoadingList ? '正在同步数据...' : '采集箱为空，请从上方导入'}
+                  {isLoadingList ? '正在同步数据...' : '采集箱为空，请先从上方导入'}
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {pendingItems.map(item => (
+                  {pendingItems.map((item) => (
                     <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-3 hover:shadow-md transition-shadow group relative">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1 pr-4">
@@ -364,17 +345,16 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                           </div>
                         </div>
                         <button
-                          onClick={() => handleDeletePending(item.id)}
+                          onClick={() => void handleDeletePending(item.id)}
                           className="text-slate-300 hover:text-red-500 p-1 transition-colors"
-                          title="丢弃 (不分析)"
+                          title="丢弃（不分析）"
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          ×
                         </button>
                       </div>
 
-                      {/* Summary Preview */}
                       <div className="text-xs text-slate-600 line-clamp-2 mb-3 bg-slate-50 p-2 rounded border border-slate-100">
-                        {item.summary || item.text.substring(0, 100) + '...'}
+                        {item.summary || `${item.text.substring(0, 100)}...`}
                       </div>
 
                       <div className="flex gap-2">
@@ -388,9 +368,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                         </a>
                         <button
                           onClick={() => handleProcessPending(item)}
-                          className="flex-[2] py-1.5 bg-gradient-to-r from-red-600 to-red-500 text-white text-xs font-bold rounded shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1"
+                          className="flex-[2] py-1.5 bg-gradient-to-r from-red-600 to-red-500 text-white text-xs font-bold rounded shadow-sm hover:shadow-md transition-all"
                         >
-                          ⚡️ AI 深度分析
+                          AI 深度分析
                         </button>
                       </div>
                     </div>
@@ -401,25 +381,24 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
           </div>
         )}
 
-        {/* --- AI TAB --- */}
         {activeTab === 'ai' && (
           <div className="space-y-4 animate-fadeIn">
             {processingPendingId && (
               <div className="bg-green-50 text-green-700 px-3 py-2 rounded text-xs border border-green-200 flex justify-between items-center">
-                <span>正在处理来自采集箱的文章... (分析成功后将自动移除)</span>
-                <button onClick={() => setProcessingPendingId(null)} className="text-green-800 font-bold">✕</button>
+                <span>正在处理来自采集箱的文章，分析成功后将自动移除。</span>
+                <button onClick={() => setProcessingPendingId(null)} className="text-green-800 font-bold">×</button>
               </div>
             )}
 
             <textarea
               className="w-full h-40 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 resize-none text-slate-700 text-sm font-mono leading-relaxed"
-              placeholder="在此粘贴新闻文本..."
+              placeholder="在此粘贴新闻正文、公众号内容、会议纪要或文章文本..."
               value={aiText}
               onChange={(e) => setAiText(e.target.value)}
             />
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 uppercase mb-1">图片链接 (可选)</label>
+              <label className="block text-xs font-medium text-slate-500 uppercase mb-1">图片链接（可选）</label>
               <input
                 type="url"
                 className="w-full p-2.5 border border-slate-300 rounded-lg text-sm"
@@ -430,23 +409,18 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
             </div>
 
             <div className="flex justify-between items-center mt-2">
-              <span className="text-[10px] text-slate-400">💡 提示：可直接粘贴微信群聊截图识别出的文字内容，AI会自动过滤闲聊并提取销售情报。</span>
+              <span className="text-[10px] text-slate-400">可直接粘贴新闻正文、会议纪要或群聊整理文本，AI 只做事实提炼。</span>
               <button
-                onClick={handleAiAnalyze}
+                onClick={() => void handleAiAnalyze()}
                 disabled={isProcessing || !aiText.trim()}
-                className={`px-6 py-2.5 rounded-lg font-bold text-white transition-all flex items-center gap-2 ${isProcessing || !aiText.trim()
-                  ? 'bg-slate-300 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/30'
-                  }`}
+                className={`px-6 py-2.5 rounded-lg font-bold text-white transition-all flex items-center gap-2 ${isProcessing || !aiText.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/30'}`}
               >
-                {isProcessing && <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>}
-                {isProcessing ? 'Qwen 分析中...' : '开始提取'}
+                {isProcessing ? 'Qwen 分析中...' : '开始提炼'}
               </button>
             </div>
           </div>
         )}
 
-        {/* --- MANUAL TAB --- */}
         {activeTab === 'manual' && (
           <form onSubmit={handleManualSubmit} className="space-y-4 animate-fadeIn">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -457,7 +431,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                   value={formData.brand}
                   onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                 >
-                  {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                  {availableBrands.map((brand) => (
+                    <option key={brand} value={brand}>{brand}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -467,7 +443,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as NewsType })}
                 >
-                  {NEWS_TYPES_LIST.map(t => <option key={t} value={t}>{NEWS_TYPE_LABELS[t]}</option>)}
+                  {NEWS_TYPES_LIST.map((type) => (
+                    <option key={type} value={type}>{NEWS_TYPE_LABELS[type]}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -475,17 +453,20 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
             <div>
               <label className="block text-xs font-medium text-slate-500 uppercase mb-1">标题</label>
               <input
-                type="text" required
+                type="text"
+                required
                 className="w-full p-2.5 border border-slate-300 rounded-lg text-sm"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 uppercase mb-1">日期</label>
                 <input
-                  type="date" required
+                  type="date"
+                  required
                   className="w-full p-2.5 border border-slate-300 rounded-lg text-sm"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -501,17 +482,20 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                 />
               </div>
             </div>
+
             <div>
               <label className="block text-xs font-medium text-slate-500 uppercase mb-1">摘要</label>
               <textarea
-                required className="w-full p-2.5 border border-slate-300 rounded-lg text-sm h-24 resize-none"
+                required
+                className="w-full p-2.5 border border-slate-300 rounded-lg text-sm h-24 resize-none"
                 value={formData.summary}
                 onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
               />
             </div>
+
             <div className="flex justify-end pt-2">
               <button type="submit" className="bg-slate-800 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700">
-                ➕ 确认添加
+                确认添加
               </button>
             </div>
           </form>

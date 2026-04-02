@@ -89,6 +89,35 @@ const ALL_SOURCES = [
     ...GOOGLE_NEWS_KEYWORDS.map(toGoogleNewsRSS),
 ];
 
+function normalizeText(value = '') {
+    return value
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizeUrl(rawUrl = '') {
+    if (!rawUrl) return '';
+    try {
+        const parsed = new URL(rawUrl);
+        parsed.hash = '';
+        parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+        const blockedParams = new Set([
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+            'fbclid', 'gclid', 'igshid', 'mc_cid', 'mc_eid', 'ref', 'ref_src',
+        ]);
+        [...parsed.searchParams.keys()].forEach((key) => {
+            if (blockedParams.has(key.toLowerCase())) parsed.searchParams.delete(key);
+        });
+        parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+        parsed.search = parsed.searchParams.toString() ? `?${parsed.searchParams.toString()}` : '';
+        return parsed.toString();
+    } catch {
+        return rawUrl.trim();
+    }
+}
+
 function extractFeedItems(source, xml, cutoffTime, maxItems = 10) {
     const $ = cheerio.load(xml, { xmlMode: true });
     const itemNodes = $('item').toArray();
@@ -191,26 +220,25 @@ async function callQwen(apiKey, messages, temperature = 0.1) {
 }
 
 async function qwenAnalyzeItem(item, apiKey) {
-    const systemPrompt = `You are a UAE automotive market intelligence analyst.
-Return valid JSON only.
+    const systemPrompt = `你是一名阿联酋汽车市场新闻标注员。请判断这条新闻是否与 UAE / GCC 汽车市场直接相关，并返回严格 JSON。
 
-If the news is not directly relevant to the UAE or GCC automotive market, return:
+如果不相关，只返回：
 {"relevant":false}
 
-If relevant, return:
+如果相关，只返回合法 JSON，不要代码块，不要解释：
 {
   "relevant": true,
-  "brand": "one brand name or Policy",
-  "chineseTitle": "short Chinese headline within 15 chars",
-  "type": "Launch (Physical) | Tech & OTA | Market & Sales | Policy | Network & Service | Competitor Tactics | Corp Strategy | Other",
-  "summary": "1-2 sentence factual Chinese summary",
-  "tags": ["tag1", "tag2"]
+  "brand": "品牌名；政府或监管新闻可写政策相关；不确定写Other",
+  "chineseTitle": "不超过18字的中文标题",
+  "type": "必须是以下之一：Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
+  "summary": "1-2句中文事实摘要，不写建议，不写推测",
+  "tags": ["最多3个标签"]
 }`;
 
     try {
         const { response, data } = await callQwen(apiKey, [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Title: ${item.title}\nSummary: ${item.snippet}\nSource: ${item.source}` },
+            { role: 'user', content: `标题: ${item.title}\n摘要: ${item.snippet}\n来源: ${item.source}\n链接: ${item.url}\n日期: ${item.date}` },
         ]);
 
         if (!response.ok) return null;
@@ -252,17 +280,26 @@ async function generateDigest(items, apiKey) {
         .map(([type, lines]) => `### ${type}\n${lines.slice(0, 8).join('\n')}`)
         .join('\n\n');
 
-    const systemPrompt = `You are preparing a concise Chinese UAE automotive daily digest.
-Use headings only for categories that have content.
-Be factual and brief. Do not add recommendations.
-Start with:
-## UAE Auto Daily Digest
-**Coverage: ${dateRange}**`;
+    const systemPrompt = `你是一名阿联酋汽车市场情报编辑，请根据输入的已分类新闻生成一份中文日报。
+
+目标：
+1. 只基于输入内容，不补充外部事实。
+2. 输出简洁、可读、适合业务团队晨报。
+3. 只写事实，不写建议，不写行动项。
+
+输出格式要求：
+- 第一行固定为：## 阿联酋汽车市场日报
+- 第二行固定为：**覆盖时间：${dateRange}**
+- 后续按有内容的类别输出小节。
+- 小节标题沿用输入中的类型名称。
+- 每条新闻写成一行短句，保留品牌名。
+- 全文使用中文。
+- 不要输出 JSON，不要输出代码块，不要添加额外前言或结尾。`;
 
     const { response, data } = await callQwen(apiKey, [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: groupedText },
-    ], 0.3);
+        { role: 'user', content: `请整理以下新闻：\n\n${groupedText}` },
+    ], 0.2);
 
     if (!response.ok) throw new Error(`Qwen digest failed: ${data.message || response.status}`);
     return data.output?.choices?.[0]?.message?.content || '';
@@ -325,7 +362,7 @@ export default async function handler(req, res) {
         const rawItems = results
             .flat()
             .filter((item) => {
-                const key = `${item.title}::${item.url}`;
+                const key = normalizeUrl(item.url) || `${normalizeText(item.title)}::${item.date}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;

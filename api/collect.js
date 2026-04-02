@@ -114,6 +114,35 @@ const ALL_SOURCES = [
     ...GOOGLE_NEWS_KEYWORDS.map(toGoogleNewsRSS),
 ];
 
+function normalizeText(value = '') {
+    return value
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizeUrl(rawUrl = '') {
+    if (!rawUrl) return '';
+    try {
+        const parsed = new URL(rawUrl);
+        parsed.hash = '';
+        parsed.hostname = parsed.hostname.replace(/^www\./, '').toLowerCase();
+        const blockedParams = new Set([
+            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+            'fbclid', 'gclid', 'igshid', 'mc_cid', 'mc_eid', 'ref', 'ref_src',
+        ]);
+        [...parsed.searchParams.keys()].forEach((key) => {
+            if (blockedParams.has(key.toLowerCase())) parsed.searchParams.delete(key);
+        });
+        parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+        parsed.search = parsed.searchParams.toString() ? `?${parsed.searchParams.toString()}` : '';
+        return parsed.toString();
+    } catch {
+        return rawUrl.trim();
+    }
+}
+
 function extractFeedItems(source, xml, cutoffTime, maxItems = 25) {
     const $ = cheerio.load(xml, { xmlMode: true });
     const itemNodes = $('item').toArray();
@@ -243,7 +272,9 @@ async function handleRSS(req, res) {
     const items = diagnostics
         .flatMap((result) => result.items)
         .filter((item) => {
-            const dedupeKey = `${item.title}::${item.url}`;
+            const normalizedUrl = normalizeUrl(item.url);
+            const normalizedTitle = normalizeText(item.title);
+            const dedupeKey = normalizedUrl || `${normalizedTitle}::${item.date}`;
             if (seen.has(dedupeKey)) return false;
             seen.add(dedupeKey);
             return true;

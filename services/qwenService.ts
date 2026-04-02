@@ -1,5 +1,5 @@
-import { NewsType, SentimentType, NewsItem } from "../types";
-import { DEFAULT_BRANDS } from "../constants";
+import { NewsType, SentimentType, NewsItem } from '../types';
+import { DEFAULT_BRANDS } from '../constants';
 
 export interface ExtractedNewsData {
   title: string;
@@ -9,7 +9,7 @@ export interface ExtractedNewsData {
   date: string;
   url: string;
   image_keywords: string;
-  sentiment: SentimentType;
+  sentiment?: SentimentType;
   tags: string[];
 }
 
@@ -23,152 +23,6 @@ export interface BrandReportData {
   };
 }
 
-// 接收 currentBrands 参数，默认为 DEFAULT_BRANDS
-export const analyzeTextWithQwen = async (text: string, currentBrands: string[] = DEFAULT_BRANDS): Promise<ExtractedNewsData> => {
-
-  // 确保品牌列表去重并包含默认品牌
-  const brandsToPrompt = Array.from(new Set([...DEFAULT_BRANDS, ...currentBrands]));
-  const brandsString = brandsToPrompt.join(', ');
-
-  const systemPrompt = `
-    You are an expert competitive intelligence analyst for the Changan Auto UAE Sales Team. Extract structured data into STRICT JSON format.
-    
-    Tasks:
-    1. Identify the Brand (Map to list: [${brandsString}] or "Other").
-    2. Summarize the news (2-3 sentences in Chinese), focusing on HOW this impacts Changan's sales or market share.
-    3. Categorize the news Type based on these STRICT definitions:
-       - "${NewsType.LAUNCH_PHYSICAL}": Physical vehicle arrival in UAE, price announcement in AED, or dealership delivery. EXCLUSION: Software-only features.
-       - "${NewsType.TECH_OTA}": Software updates, autonomous driving features, mobile apps, or R&D (e.g., Tesla V12 update).
-       - "${NewsType.MARKET_SALES}": Sales data, fleet sales bids (B2B/B2G), market share reports, or monthly performance in UAE/GCC.
-       - "${NewsType.POLICY}": UAE government mandates, EV incentives, DEWA regulations, customs tariffs, or subsidy changes.
-       - "${NewsType.NETWORK_SERVICE}": New showrooms, service centers, charging station maps, or dealership agreements.
-       - "${NewsType.COMPETITOR_TACTICS}": Local promotions, Ramadan offers, finance rate cuts, or PR events by brands.
-       - "${NewsType.CORP_STRATEGY}": Brand entry to UAE, MOUs, local partnerships, or regional headquarters news.
-       - "${NewsType.OTHER}": Anything not fitting above.
-
-    4. Analyze Sentiment from CHANGAN'S perspective:
-       - If it's good news for Changan (e.g., Changan sales up, competitor price increase) -> "positive"
-       - If it's neutral -> "neutral"
-       - If it's a threat to Changan (e.g., competitor price cut, new competitor launch) -> "negative"
-    5. Extract 3-5 relevant Tags (e.g., "Ramadan Offer", "B2B Fleet", "Price Cut").
-    6. Extract Image Keywords for generation.
-
-    Output Structure:
-    {
-      "title": "Chinese headline",
-      "summary": "Chinese summary",
-      "brand": "Brand Name",
-      "type": "One of the strict types above",
-      "date": "YYYY-MM-DD (default: ${new Date().toISOString().split('T')[0]})",
-      "url": "URL found in text or empty",
-      "image_keywords": "3-6 English keywords",
-      "sentiment": "positive" | "neutral" | "negative",
-      "tags": ["Tag1", "Tag2", "Tag3"]
-    }
-  `;
-
-  try {
-    // 直接请求后端 API
-    const response = await fetch("/api/ai?action=analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, prompt: systemPrompt })
-    });
-
-    if (!response.ok) {
-      let errorMsg = `Server Error: ${response.status}`;
-      try {
-        const errData = await response.json();
-        errorMsg = errData.error || errData.message || errorMsg;
-      } catch {
-        const text = await response.text();
-        if (text) errorMsg += ` - ${text.substring(0, 50)}`;
-      }
-      throw new Error(errorMsg);
-    }
-
-    const rawData = await response.json();
-
-    if (rawData.code && rawData.code !== '200' && rawData.message) {
-      throw new Error(`Qwen API Error: ${rawData.message}`);
-    }
-
-    const rawContent = rawData.output?.choices?.[0]?.message?.content || "";
-
-    if (!rawContent) throw new Error("AI 返回了空内容");
-
-    // 🧹 JSON 清洗逻辑
-    let cleanJson = rawContent.replace(/```json/gi, "").replace(/```/g, "").trim();
-    const firstOpen = cleanJson.indexOf("{");
-    const lastClose = cleanJson.lastIndexOf("}");
-    if (firstOpen !== -1 && lastClose !== -1) {
-      cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-    }
-
-    try {
-      return JSON.parse(cleanJson) as ExtractedNewsData;
-    } catch (e) {
-      console.error("JSON Parse Error", cleanJson);
-      throw new Error("AI 返回格式无法解析，请重试");
-    }
-
-  } catch (error: any) {
-    console.error("Qwen Analysis Failed:", error);
-    throw new Error(error.message || "智能分析服务暂时不可用");
-  }
-};
-
-export const generateBrandReport = async (brand: string, periodLabel: string, newsList: NewsItem[]): Promise<BrandReportData> => {
-  // 简化输入，减少 Token 消耗
-  const newsContext = newsList.map(n => `[${n.date}] ${n.type}: ${n.title}`).join('\n');
-
-  const systemPrompt = `
-      You are a senior strategic consultant for the automotive industry. 
-      Write a concise, high-level "Brand Dossier" Executive Summary for "${brand}" during the period "${periodLabel}".
-      
-      Instructions:
-      1. Analyze the provided news list to identify the brand's key strategic focus (e.g., Aggressive Expansion, Product Renewal, Policy Compliance).
-      2. Write an "executive_summary" (approx 200 words, in Chinese) that reads like a professional briefing for a CEO. Focus on business impact, not just listing events.
-      3. Extract key bullet points for SWOT analysis based on the events.
-
-      Output strictly in JSON format:
-      {
-        "executive_summary": "Professional strategic summary in Chinese...",
-        "swot": {
-          "strengths": ["Strategic point 1", "Strategic point 2"],
-          "weaknesses": ["Risk point 1", "Risk point 2"],
-          "opportunities": ["Market opportunity 1"],
-          "threats": ["Competitive threat 1"]
-        }
-      }
-    `;
-
-  try {
-    const response = await fetch("/api/ai?action=analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: `News Context:\n${newsContext}`, prompt: systemPrompt })
-    });
-
-    if (!response.ok) throw new Error("Report Generation Failed");
-    const rawData = await response.json();
-    const rawContent = rawData.output?.choices?.[0]?.message?.content || "";
-
-    let cleanJson = rawContent.replace(/```json/gi, "").replace(/```/g, "").trim();
-    const firstOpen = cleanJson.indexOf("{");
-    const lastClose = cleanJson.lastIndexOf("}");
-    if (firstOpen !== -1 && lastClose !== -1) {
-      cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-    }
-
-    return JSON.parse(cleanJson) as BrandReportData;
-  } catch (error: any) {
-    console.error("Report Generation Error:", error);
-    throw error;
-  }
-};
-
-// ─── Weekly Summary (Phase 5) ─────────────────────────────────────────────────
 export interface WeeklySummaryData {
   executive_summary: string;
   top_trends: Array<{
@@ -178,55 +32,174 @@ export interface WeeklySummaryData {
   }>;
 }
 
-export const generateWeeklySummary = async (newsList: NewsItem[], period: string): Promise<WeeklySummaryData> => {
-  // Use at most 15 key items to reduce token usage
+const today = new Date().toISOString().split('T')[0];
+
+const extractJsonObject = (rawContent: string): string => {
+  const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const firstOpen = cleaned.indexOf('{');
+  const lastClose = cleaned.lastIndexOf('}');
+  return firstOpen !== -1 && lastClose !== -1 ? cleaned.substring(firstOpen, lastClose + 1) : cleaned;
+};
+
+const fetchAnalyze = async (text: string, prompt: string) => {
+  const response = await fetch('/api/ai?action=analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, prompt }),
+  });
+
+  if (!response.ok) {
+    let errorMsg = `Server Error: ${response.status}`;
+    try {
+      const errData = await response.json();
+      errorMsg = errData.error || errData.message || errorMsg;
+    } catch {
+      const fallback = await response.text();
+      if (fallback) errorMsg += ` - ${fallback.slice(0, 80)}`;
+    }
+    throw new Error(errorMsg);
+  }
+
+  const rawData = await response.json();
+  const rawContent = rawData.output?.choices?.[0]?.message?.content || '';
+  if (!rawContent) throw new Error('AI returned empty content');
+  return JSON.parse(extractJsonObject(rawContent));
+};
+
+export const analyzeTextWithQwen = async (
+  text: string,
+  currentBrands: string[] = DEFAULT_BRANDS,
+): Promise<ExtractedNewsData> => {
+  const brandsToPrompt = Array.from(new Set([...DEFAULT_BRANDS, ...currentBrands]));
+  const brandsString = brandsToPrompt.join(', ');
+
+  const systemPrompt = `You are an automotive news extraction engine for the UAE market.
+Return strict JSON only. Do not include markdown fences. Do not add explanation.
+
+Goals:
+1. Extract the main brand. It must be one of [${brandsString}] or "Other".
+2. Write a factual Chinese headline and factual Chinese summary.
+3. Classify type using exactly one of:
+- ${NewsType.LAUNCH_PHYSICAL}
+- ${NewsType.TECH_OTA}
+- ${NewsType.MARKET_SALES}
+- ${NewsType.POLICY}
+- ${NewsType.NETWORK_SERVICE}
+- ${NewsType.COMPETITOR_TACTICS}
+- ${NewsType.CORP_STRATEGY}
+- ${NewsType.OTHER}
+4. Extract 3-5 tags.
+5. image_keywords must be 3-6 simple English keywords.
+
+Rules:
+- summary must describe facts only, not recommendations.
+- Do not mention opportunities, threats, implications, advice, or brand strategy.
+- Do not infer business impact for any brand unless the source text states it directly.
+- If the date is unclear, use ${today}.
+- If the URL is unclear, use an empty string.
+- If the brand is not in the allowed list, use "Other".
+
+Output JSON:
+{
+  "title": "Chinese headline within 18 chars",
+  "summary": "2-3 sentence factual Chinese summary",
+  "brand": "Brand Name or Other",
+  "type": "One of the allowed type values",
+  "date": "YYYY-MM-DD",
+  "url": "",
+  "image_keywords": "english keywords",
+  "tags": ["tag1", "tag2", "tag3"]
+}`;
+
+  try {
+    return await fetchAnalyze(text, systemPrompt) as ExtractedNewsData;
+  } catch (error: any) {
+    console.error('Qwen Analysis Failed:', error);
+    throw new Error(error.message || '智能分析服务暂时不可用');
+  }
+};
+
+export const generateBrandReport = async (
+  brand: string,
+  periodLabel: string,
+  newsList: NewsItem[],
+): Promise<BrandReportData> => {
+  const newsContext = newsList.map((item) => `[${item.date}] [${item.type}] ${item.title}`).join('\n');
+
+  const systemPrompt = `You are a senior automotive strategy analyst.
+Write a concise Chinese brand briefing for "${brand}" during "${periodLabel}".
+Return strict JSON only.
+
+Rules:
+- executive_summary should be about 120-180 Chinese characters.
+- Base the summary only on the provided news.
+- SWOT points should be short phrases, not full paragraphs.
+- If evidence is weak, keep the point conservative.
+
+Output JSON:
+{
+  "executive_summary": "Chinese summary",
+  "swot": {
+    "strengths": ["point 1", "point 2"],
+    "weaknesses": ["point 1", "point 2"],
+    "opportunities": ["point 1", "point 2"],
+    "threats": ["point 1", "point 2"]
+  }
+}`;
+
+  try {
+    return await fetchAnalyze(`News Context:\n${newsContext}`, systemPrompt) as BrandReportData;
+  } catch (error: any) {
+    console.error('Report Generation Error:', error);
+    throw error;
+  }
+};
+
+export const generateWeeklySummary = async (
+  newsList: NewsItem[],
+  period: string,
+): Promise<WeeklySummaryData> => {
   const keyItems = newsList
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 15)
-    .map(n => `[${n.date}][${n.brand}][${n.type}] ${n.title}`)
+    .map((item) => `[${item.date}][${item.brand}][${item.type}] ${item.title}`)
     .join('\n');
 
-  const systemPrompt = `
-    You are a senior automotive market intelligence analyst. Analyze the following UAE auto market news from ${period} and produce a strategic weekly briefing.
+  const systemPrompt = `You are a senior UAE automotive market analyst.
+Summarize the period "${period}" into a factual Chinese weekly brief.
+Return strict JSON only.
 
-    Your output must be strict JSON in this format:
+Rules:
+- executive_summary: 2-3 Chinese sentences, factual and high-level.
+- top_trends: exactly 3 items.
+- title: Chinese, <= 10 chars.
+- evidence: cite one concrete event from the news list.
+- implication: explain the market-level meaning in neutral language.
+- You may mention Changan only when it appears in the source items.
+- Do not frame implications from Changan's point of view unless the source text itself supports it.
+- Do not invent evidence outside the input.
+
+Output JSON:
+{
+  "executive_summary": "Chinese summary",
+  "top_trends": [
     {
-      "executive_summary": "2-3 sentence high-level synthesis in Chinese covering the week's most important strategic shifts",
-      "top_trends": [
-        {
-          "title": "Trend name (Chinese, 10 chars max)",
-          "evidence": "One specific news event or data point that illustrates this trend",
-          "implication": "What this means for Changan's strategy in the UAE"
-        }
-      ]
+      "title": "趋势名称",
+      "evidence": "具体事件",
+      "implication": "对市场的含义"
+    },
+    {
+      "title": "趋势名称",
+      "evidence": "具体事件",
+      "implication": "对市场的含义"
+    },
+    {
+      "title": "趋势名称",
+      "evidence": "具体事件",
+      "implication": "对市场的含义"
     }
+  ]
+}`;
 
-    Rules:
-    - executive_summary must be in Chinese, concise and actionable
-    - top_trends must have exactly 3 items
-    - Each trend title must be in Chinese, ≤10 characters
-    - Evidence should cite a specific brand/event from the news list
-    - Implication must directly reference Changan's competitive position
-    - Return ONLY valid JSON, no markdown fences
-  `;
-
-  const response = await fetch("/api/ai?action=analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: `News Context:\n${keyItems}`, prompt: systemPrompt })
-  });
-
-  if (!response.ok) throw new Error("Weekly summary generation failed");
-  const rawData = await response.json();
-  const rawContent = rawData.output?.choices?.[0]?.message?.content || "";
-
-  let cleanJson = rawContent.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const firstOpen = cleanJson.indexOf("{");
-  const lastClose = cleanJson.lastIndexOf("}");
-  if (firstOpen !== -1 && lastClose !== -1) {
-    cleanJson = cleanJson.substring(firstOpen, lastClose + 1);
-  }
-
-  return JSON.parse(cleanJson) as WeeklySummaryData;
+  return await fetchAnalyze(`News Context:\n${keyItems}`, systemPrompt) as WeeklySummaryData;
 };
-
