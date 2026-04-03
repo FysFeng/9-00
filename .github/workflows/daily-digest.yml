@@ -20,7 +20,7 @@ jobs:
         run: |
           echo "📡 正在调用日报推送接口..."
           
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
+          RESPONSE=$(curl -L -s -w "\n%{http_code}" \
             -X POST "${{ secrets.APP_URL }}/api/cron" \
             -H "Content-Type: application/json" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
