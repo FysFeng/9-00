@@ -11,8 +11,11 @@ export interface RawRSSItem {
 
 export interface RSSFetchResult {
     imported: NewsItem[];
+    directImported: number;
+    fallbackImported: number;
     skipped: number;
     total: number;
+    failedCandidates: Array<RawRSSItem & { reason: string }>;
 }
 
 const uid = () => `rss-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -78,7 +81,25 @@ function normalizeStrategySignals(signals: unknown): StrategySignal[] {
         .slice(0, 5);
 }
 
-async function qwenExtract(item: RawRSSItem): Promise<NewsItem | null> {
+function createFallbackItem(item: RawRSSItem): NewsItem {
+    return {
+        id: uid(),
+        brand: 'Other',
+        date: item.date,
+        type: NewsType.OTHER,
+        title: item.title,
+        summary: item.snippet || item.title,
+        tags: ['待复核', '自动降级'],
+        url: item.url,
+        source: item.source,
+    };
+}
+
+async function qwenExtract(item: RawRSSItem): Promise<{
+    status: 'imported' | 'fallback' | 'skipped' | 'failed';
+    item: NewsItem | null;
+    reason?: string;
+}> {
     const systemPrompt = `You are a UAE automotive news screener.
 Judge whether the item is directly relevant to the UAE or GCC automotive market and return strict JSON only.
 
@@ -127,36 +148,61 @@ Rules:
             }),
         });
 
-        if (!response.ok) return null;
+        if (!response.ok) {
+            return {
+                status: 'fallback',
+                item: createFallbackItem(item),
+                reason: `AI service HTTP ${response.status}`,
+            };
+        }
         const data = await response.json();
         const content: string = data.output?.choices?.[0]?.message?.content || '';
-        if (!content) return null;
+        if (!content) {
+            return {
+                status: 'fallback',
+                item: createFallbackItem(item),
+                reason: 'AI returned empty content',
+            };
+        }
 
         const parsed = JSON.parse(extractJsonObject(content));
-        if (!parsed.relevant) return null;
+        if (!parsed.relevant) {
+            return {
+                status: 'skipped',
+                item: null,
+                reason: 'AI marked as irrelevant',
+            };
+        }
 
         const parsedType = ALLOWED_TYPES.includes(parsed.type as NewsType)
             ? (parsed.type as NewsType)
             : NewsType.OTHER;
 
         return {
-            id: uid(),
-            brand: parsed.brand || 'Other',
-            date: item.date,
-            type: parsedType,
-            title: parsed.chineseTitle || item.title,
-            summary: parsed.summary || item.snippet,
-            tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3) : [],
-            model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
-            msrp: typeof parsed.msrp === 'string' ? parsed.msrp.trim() : '',
-            currency: typeof parsed.currency === 'string' ? parsed.currency.trim() : '',
-            strategySignals: normalizeStrategySignals(parsed.strategy_signals),
-            url: item.url,
-            source: item.source,
+            status: 'imported',
+            item: {
+                id: uid(),
+                brand: parsed.brand || 'Other',
+                date: item.date,
+                type: parsedType,
+                title: parsed.chineseTitle || item.title,
+                summary: parsed.summary || item.snippet,
+                tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3) : [],
+                model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
+                msrp: typeof parsed.msrp === 'string' ? parsed.msrp.trim() : '',
+                currency: typeof parsed.currency === 'string' ? parsed.currency.trim() : '',
+                strategySignals: normalizeStrategySignals(parsed.strategy_signals),
+                url: item.url,
+                source: item.source,
+            },
         };
     } catch (error) {
         console.error('[rssService] qwenExtract failed:', error);
-        return null;
+        return {
+            status: 'fallback',
+            item: createFallbackItem(item),
+            reason: error instanceof Error ? error.message : 'AI extraction failed',
+        };
     }
 }
 
@@ -169,10 +215,13 @@ export async function fetchAndScreenRSS(
     const { items }: { items: RawRSSItem[] } = await rssRes.json();
 
     if (!items || items.length === 0) {
-        return { imported: [], skipped: 0, total: 0 };
+        return { imported: [], directImported: 0, fallbackImported: 0, skipped: 0, total: 0, failedCandidates: [] };
     }
 
     const imported: NewsItem[] = [];
+    const failedCandidates: Array<RawRSSItem & { reason: string }> = [];
+    let directImported = 0;
+    let fallbackImported = 0;
     let skipped = 0;
 
     for (let i = 0; i < items.length; i += 1) {
@@ -180,13 +229,30 @@ export async function fetchAndScreenRSS(
         onProgress?.(i + 1, items.length, item.title);
 
         const result = await qwenExtract(item);
-        if (result) imported.push(result);
-        else skipped += 1;
+        if (result.status === 'imported' && result.item) {
+            imported.push(result.item);
+            directImported += 1;
+        } else if (result.status === 'fallback' && result.item) {
+            imported.push(result.item);
+            fallbackImported += 1;
+            failedCandidates.push({ ...item, reason: result.reason || '已降级导入' });
+        } else if (result.status === 'failed') {
+            failedCandidates.push({ ...item, reason: result.reason || '处理失败' });
+        } else {
+            skipped += 1;
+        }
 
         await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    return { imported, skipped, total: items.length };
+    return {
+        imported,
+        directImported,
+        fallbackImported,
+        skipped,
+        total: items.length,
+        failedCandidates,
+    };
 }
 
 export async function generateDailyDigest(items: NewsItem[], options?: { startDate?: string; endDate?: string }): Promise<string> {

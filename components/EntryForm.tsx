@@ -28,6 +28,10 @@ interface RssItem {
   snippet: string;
 }
 
+interface FailedCandidate extends RssItem {
+  reason: string;
+}
+
 const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrands }) => {
   const [activeTab, setActiveTab] = useState<'spider' | 'ai' | 'manual'>('spider');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,9 +49,12 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrand
   const [rssDays, setRssDays] = useState(3);
   const [scanSummary, setScanSummary] = useState<{
     imported: number;
+    directImported: number;
+    fallbackImported: number;
     skipped: number;
     total: number;
   } | null>(null);
+  const [failedCandidates, setFailedCandidates] = useState<FailedCandidate[]>([]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -95,14 +102,18 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrand
     setError(null);
     setRssItems([]);
     setScanSummary(null);
+    setFailedCandidates([]);
     try {
       const result = await fetchAndScreenRSS(rssDays);
       await onAddBatch(result.imported);
       setScanSummary({
         imported: result.imported.length,
+        directImported: result.directImported,
+        fallbackImported: result.fallbackImported,
         skipped: result.skipped,
         total: result.total,
       });
+      setFailedCandidates(result.failedCandidates);
       setRssItems(
         result.imported.slice(0, 12).map((item) => ({
           source: item.source,
@@ -288,7 +299,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrand
 
               {scanSummary && (
                 <div className="mb-3 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-100">
-                  本次共扫描 {scanSummary.total} 条，AI 通过并导入 {scanSummary.imported} 条，跳过 {scanSummary.skipped} 条。
+                  本次共扫描 {scanSummary.total} 条，正常导入 {scanSummary.directImported} 条，降级导入 {scanSummary.fallbackImported} 条，跳过 {scanSummary.skipped} 条。
                 </div>
               )}
 
@@ -317,6 +328,26 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrand
                       </div>
                     ))
                   )}
+                </div>
+              )}
+
+              {failedCandidates.length > 0 && (
+                <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-3">
+                  <div className="mb-2 text-[11px] font-bold text-amber-200">失败保底池</div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    {failedCandidates.slice(0, 12).map((item, idx) => (
+                      <div key={`${item.url}-failed-${idx}`} className="rounded border border-amber-500/20 bg-slate-900/20 p-2">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[9px] bg-slate-700 px-1 rounded text-slate-200">{item.source}</span>
+                          <span className="text-[9px] text-slate-400">{item.date}</span>
+                        </div>
+                        <a href={item.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-slate-100 hover:text-blue-300 hover:underline">
+                          {item.title}
+                        </a>
+                        <p className="mt-1 text-[10px] text-amber-200">保底原因：{item.reason}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
