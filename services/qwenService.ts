@@ -76,8 +76,8 @@ const ALLOWED_NEWS_TYPES = new Set<NewsType>([
 const normalizeStrategySignals = (signals: unknown): StrategySignal[] => {
   if (!Array.isArray(signals)) return [];
 
-  return signals
-    .map((signal) => {
+  return (signals
+    .map<StrategySignal | null>((signal) => {
       if (!signal || typeof signal !== 'object') return null;
       const raw = signal as Record<string, unknown>;
       const category = typeof raw.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(raw.category as StrategySignal['category'])
@@ -95,7 +95,7 @@ const normalizeStrategySignals = (signals: unknown): StrategySignal[] => {
       if (!action) return null;
       return { category, action, model, msrp, currency, current_value, previous_value, note, raw_excerpt };
     })
-    .filter((signal): signal is StrategySignal => Boolean(signal))
+    .filter(Boolean) as StrategySignal[])
     .slice(0, 5);
 };
 

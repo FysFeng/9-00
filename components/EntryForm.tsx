@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { NewsItem, NewsType } from '../types';
 import { NEWS_TYPES_LIST, NEWS_TYPE_LABELS } from '../constants';
 import { analyzeTextWithQwen } from '../services/qwenService';
+import { fetchAndScreenRSS } from '../services/rssService';
 
 interface EntryFormProps {
   onAdd: (item: Omit<NewsItem, 'id'>) => void;
+  onAddBatch: (items: NewsItem[]) => Promise<void>;
   availableBrands: string[];
 }
 
@@ -26,7 +28,7 @@ interface RssItem {
   snippet: string;
 }
 
-const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
+const EntryForm: React.FC<EntryFormProps> = ({ onAdd, onAddBatch, availableBrands }) => {
   const [activeTab, setActiveTab] = useState<'spider' | 'ai' | 'manual'>('spider');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +43,11 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
   const [isScanningRss, setIsScanningRss] = useState(false);
   const [showRss, setShowRss] = useState(false);
   const [rssDays, setRssDays] = useState(3);
+  const [scanSummary, setScanSummary] = useState<{
+    imported: number;
+    skipped: number;
+    total: number;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -87,14 +94,27 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
     setIsScanningRss(true);
     setError(null);
     setRssItems([]);
+    setScanSummary(null);
     try {
-      const res = await fetch(`/api/collect?action=rss&days=${rssDays}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '扫描失败');
-      setRssItems(data.items || []);
+      const result = await fetchAndScreenRSS(rssDays);
+      await onAddBatch(result.imported);
+      setScanSummary({
+        imported: result.imported.length,
+        skipped: result.skipped,
+        total: result.total,
+      });
+      setRssItems(
+        result.imported.slice(0, 12).map((item) => ({
+          source: item.source,
+          title: item.title,
+          url: item.url,
+          date: item.date,
+          snippet: item.summary,
+        })),
+      );
       setShowRss(true);
     } catch (e: any) {
-      setError(e.message || '扫描失败');
+      setError(e.message || '扫描并导入失败');
     } finally {
       setIsScanningRss(false);
     }
@@ -243,7 +263,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
               <div className="flex justify-between items-center mb-3">
                 <div>
                   <h3 className="text-sm font-bold flex items-center gap-2">全网雷达</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">扫描 RSS / X 镜像 / Google News 源并放入采集箱</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">自动扫描、AI 筛选、去重，并直接导入品牌资讯</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <select
@@ -261,20 +281,26 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                     disabled={isScanningRss}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors disabled:opacity-50"
                   >
-                    {isScanningRss ? '扫描中...' : '开始扫描'}
+                    {isScanningRss ? '扫描导入中...' : '开始扫描并导入'}
                   </button>
                 </div>
               </div>
+
+              {scanSummary && (
+                <div className="mb-3 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-100">
+                  本次共扫描 {scanSummary.total} 条，AI 通过并导入 {scanSummary.imported} 条，跳过 {scanSummary.skipped} 条。
+                </div>
+              )}
 
               {showRss && (
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-800/50 rounded p-2 border border-slate-700">
                   {rssItems.length === 0 ? (
                     <div className="text-center text-xs text-slate-500 py-4">
-                      过去 {rssDays} 天内未发现新资讯。<br />建议尝试扩大扫描时间范围。
+                      过去 {rssDays} 天内没有导入新资讯。<br />可以尝试扩大扫描时间范围。
                     </div>
                   ) : (
                     rssItems.map((item, idx) => (
-                      <div key={`${item.url}-${idx}`} className="flex justify-between items-center gap-2 p-2 hover:bg-slate-700/50 rounded group transition-colors">
+                      <div key={`${item.url}-${idx}`} className="flex justify-between items-center gap-2 p-2 hover:bg-slate-700/50 rounded transition-colors">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="text-[9px] bg-slate-600 px-1 rounded text-slate-200">{item.source}</span>
@@ -285,16 +311,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ onAdd, availableBrands }) => {
                           </a>
                           {item.snippet && <p className="text-[10px] text-slate-400 truncate mt-1">{item.snippet}</p>}
                         </div>
-                        <button
-                          onClick={() => {
-                            setSpiderUrl(item.url);
-                            void handleSpiderSubmit(item.url);
-                          }}
-                          className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-all"
-                          title="抓取并放入采集箱"
-                        >
-                          抓取
-                        </button>
+                        <span className="shrink-0 rounded bg-emerald-600/20 px-2 py-1 text-[10px] font-bold text-emerald-300">
+                          已导入
+                        </span>
                       </div>
                     ))
                   )}

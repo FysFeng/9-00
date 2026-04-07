@@ -184,7 +184,7 @@ function DigestTab({ items }: { items: NewsItem[] }) {
 }
 
 export default function WorkbenchView() {
-    const { addIntelligence, customBrands, rawIntelligence } = useIntelligenceStore();
+    const { addIntelligence, addBatchIntelligence, customBrands, rawIntelligence } = useIntelligenceStore();
     const [tab, setTab] = useState<Tab>('ingest');
 
     const tabs: { id: Tab; label: string }[] = [
@@ -215,7 +215,7 @@ export default function WorkbenchView() {
             </div>
 
             {tab === 'ingest' && (
-                <EntryForm onAdd={addIntelligence} availableBrands={customBrands} />
+                <EntryForm onAdd={addIntelligence} onAddBatch={addBatchIntelligence} availableBrands={customBrands} />
             )}
 
             {tab === 'digest' && <DigestTab items={rawIntelligence} />}

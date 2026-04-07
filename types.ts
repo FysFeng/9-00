@@ -72,6 +72,21 @@ export interface NewsItem {
   strategySignals?: StrategySignal[];
 }
 
+export interface PendingItem {
+  id: string;
+  title: string;
+  snippet?: string;
+  summary?: string;
+  text?: string;
+  source?: string;
+  sourceName?: string;
+  link?: string;
+  url?: string;
+  imageUrl?: string;
+  scrapedAt?: string;
+  pubDate?: string;
+}
+
 export interface FilterState {
   startDate: string;
   endDate: string;

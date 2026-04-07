@@ -272,7 +272,9 @@ export default function ModelTimeline() {
                                 {grouped[stage.type]
                                     .sort((a, b) => a.date.localeCompare(b.date))
                                     .map(item => (
-                                        <TimelineCard key={item.id} item={item} />
+                                        <React.Fragment key={item.id}>
+                                            <TimelineCard item={item} />
+                                        </React.Fragment>
                                     ))}
                             </div>
                         </div>
