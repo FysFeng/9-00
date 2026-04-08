@@ -48,6 +48,57 @@ const ALLOWED_SIGNAL_CATEGORIES = new Set<StrategySignal['category']>([
     'other',
 ]);
 
+const RELEVANCE_HINT_PATTERNS = [
+    /\buae\b/i,
+    /\bdubai\b/i,
+    /\babu dhabi\b/i,
+    /\bgcc\b/i,
+    /\bemirates\b/i,
+    /\bev\b/i,
+    /\bhybrid\b/i,
+    /\bvehicle\b/i,
+    /\bauto\b/i,
+    /\bautomotive\b/i,
+    /\bcar\b/i,
+    /\bsuv\b/i,
+    /\bsedan\b/i,
+    /\bdealer\b/i,
+    /\blaunch\b/i,
+    /\bprice\b/i,
+    /\bdiscount\b/i,
+    /\bfinance\b/i,
+    /\bwarranty\b/i,
+    /\binsurance\b/i,
+    /\bdelivery\b/i,
+    /\bcharging\b/i,
+    /\bregistration\b/i,
+];
+
+const BRAND_HINT_PATTERNS = [
+    /\bchangan\b/i,
+    /\bdeepal\b/i,
+    /\bavatr\b/i,
+    /\bbyd\b/i,
+    /\bgeely\b/i,
+    /\bchery\b/i,
+    /\bjaecoo\b/i,
+    /\bomoda\b/i,
+    /\bmg\b/i,
+    /\bgwm\b/i,
+    /\bhaval\b/i,
+    /\btank\b/i,
+    /\bjetour\b/i,
+    /\btoyota\b/i,
+    /\bnissan\b/i,
+    /\bhyundai\b/i,
+    /\bkia\b/i,
+    /\bbmw\b/i,
+    /\bmercedes\b/i,
+    /\baudi\b/i,
+    /\blexus\b/i,
+    /\bford\b/i,
+];
+
 function extractJsonObject(rawContent: string): string {
     const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
     const start = cleaned.indexOf('{');
@@ -62,9 +113,10 @@ function normalizeStrategySignals(signals: unknown): StrategySignal[] {
         .map<StrategySignal | null>((signal) => {
             if (!signal || typeof signal !== 'object') return null;
             const raw = signal as Record<string, unknown>;
-            const category = typeof raw.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(raw.category as StrategySignal['category'])
-                ? raw.category as StrategySignal['category']
-                : 'other';
+            const category =
+                typeof raw.category === 'string' && ALLOWED_SIGNAL_CATEGORIES.has(raw.category as StrategySignal['category'])
+                    ? (raw.category as StrategySignal['category'])
+                    : 'other';
             const action = typeof raw.action === 'string' ? raw.action.trim() : '';
             const model = typeof raw.model === 'string' ? raw.model.trim() : undefined;
             const msrp = typeof raw.msrp === 'string' ? raw.msrp.trim() : undefined;
@@ -77,22 +129,37 @@ function normalizeStrategySignals(signals: unknown): StrategySignal[] {
             if (!action) return null;
             return { category, action, model, msrp, currency, current_value, previous_value, note, raw_excerpt };
         })
-        .filter(Boolean) as StrategySignal[])
-        .slice(0, 5);
+        .filter(Boolean) as StrategySignal[]).slice(0, 5);
 }
 
-function createFallbackItem(item: RawRSSItem): NewsItem {
+function createFallbackItem(
+    item: RawRSSItem,
+    options?: { tags?: string[]; summary?: string },
+): NewsItem {
     return {
         id: uid(),
         brand: 'Other',
         date: item.date,
         type: NewsType.OTHER,
         title: item.title,
-        summary: item.snippet || item.title,
-        tags: ['待复核', '自动降级'],
+        summary: options?.summary || item.snippet || item.title,
+        tags: options?.tags || ['待复核', '自动降级'],
         url: item.url,
         source: item.source,
     };
+}
+
+function shouldFallbackWhenRejected(item: RawRSSItem): boolean {
+    const haystack = `${item.source} ${item.title} ${item.snippet} ${item.url}`.toLowerCase();
+    const relevanceScore =
+        RELEVANCE_HINT_PATTERNS.reduce((count, pattern) => count + (pattern.test(haystack) ? 1 : 0), 0)
+        + BRAND_HINT_PATTERNS.reduce((count, pattern) => count + (pattern.test(haystack) ? 1 : 0), 0);
+
+    if (item.source.startsWith('GNews:') || item.source.startsWith('X:')) {
+        return relevanceScore >= 2;
+    }
+
+    return relevanceScore >= 3;
 }
 
 async function qwenExtract(item: RawRSSItem): Promise<{
@@ -109,7 +176,7 @@ If not relevant, return:
 If relevant, return:
 {
   "relevant": true,
-  "brand": "Brand name, 政策相关, or Other",
+  "brand": "Brand name, policy related, or Other",
   "chineseTitle": "Chinese headline within 18 chars",
   "type": "One of: Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
   "summary": "1-2 sentence factual Chinese summary with no recommendation or inference",
@@ -155,8 +222,10 @@ Rules:
                 reason: `AI service HTTP ${response.status}`,
             };
         }
+
         const data = await response.json();
         const content: string = data.output?.choices?.[0]?.message?.content || '';
+
         if (!content) {
             return {
                 status: 'fallback',
@@ -166,7 +235,18 @@ Rules:
         }
 
         const parsed = JSON.parse(extractJsonObject(content));
+
         if (!parsed.relevant) {
+            if (shouldFallbackWhenRejected(item)) {
+                return {
+                    status: 'fallback',
+                    item: createFallbackItem(item, {
+                        tags: ['待复核', 'AI未确认', '自动降级'],
+                    }),
+                    reason: 'AI rejected but heuristic fallback kept item',
+                };
+            }
+
             return {
                 status: 'skipped',
                 item: null,
