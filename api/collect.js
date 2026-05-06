@@ -82,7 +82,7 @@ const GOOGLE_NEWS_KEYWORDS = [
     'UAE automobile market growth',
     'Dubai Motor Show',
     'Abu Dhabi auto market',
-    'GCC car market share Chinese brands',
+    'UAE car market share Chinese brands',
     'car price reduction UAE promotion',
     'zero percent finance car UAE',
     'used car market UAE',
@@ -141,6 +141,135 @@ function normalizeUrl(rawUrl = '') {
     } catch {
         return rawUrl.trim();
     }
+}
+
+const UAE_PATTERNS = [
+    /\buae\b/i,
+    /\bunited arab emirates\b/i,
+    /\bdubai\b/i,
+    /\babu dhabi\b/i,
+    /\bsharjah\b/i,
+    /\bajman\b/i,
+    /\bras al khaimah\b/i,
+    /\bfujairah\b/i,
+    /\bumm al quwain\b/i,
+    /\baed\b/i,
+];
+
+const BRAND_PATTERNS = [
+    /\bchangan\b/i,
+    /\bdeepal\b/i,
+    /\bavatr\b/i,
+    /\bbyd\b/i,
+    /\bdenza\b/i,
+    /\bgeely\b/i,
+    /\bzeekr\b/i,
+    /\blink\s*&\s*co\b/i,
+    /\bchery\b/i,
+    /\bexeed\b/i,
+    /\bjaecoo\b/i,
+    /\bomoda\b/i,
+    /\bmg\b/i,
+    /\bgwm\b/i,
+    /\bhaval\b/i,
+    /\btank\b/i,
+    /\bjetour\b/i,
+    /\bgac\b/i,
+    /\baion\b/i,
+    /\btoyota\b/i,
+    /\bnissan\b/i,
+    /\bhyundai\b/i,
+    /\bkia\b/i,
+    /\bhonda\b/i,
+    /\blexus\b/i,
+    /\bford\b/i,
+    /\bchevrolet\b/i,
+    /\bvolkswagen\b/i,
+    /\bmercedes\b/i,
+    /\bbmw\b/i,
+    /\baudi\b/i,
+    /\bland rover\b/i,
+];
+
+const AUTO_TOPIC_PATTERNS = [
+    /\bauto(motive)?\b/i,
+    /\bcar(s)?\b/i,
+    /\bvehicle(s)?\b/i,
+    /\bev(s)?\b/i,
+    /\belectric vehicle(s)?\b/i,
+    /\bhybrid\b/i,
+    /\bsuv\b/i,
+    /\bsedan\b/i,
+    /\bdealer(ship)?\b/i,
+    /\bshowroom\b/i,
+    /\bservice center\b/i,
+    /\bcharging\b/i,
+];
+
+const MARKET_SIGNAL_PATTERNS = [
+    /\blaunch(ed|es)?\b/i,
+    /\bprice(s|d)?\b/i,
+    /\bdiscount(s|ed)?\b/i,
+    /\boffer(s)?\b/i,
+    /\bpromotion(s)?\b/i,
+    /\bfinance\b/i,
+    /\bzero percent\b/i,
+    /\bwarranty\b/i,
+    /\binsurance\b/i,
+    /\btrade[- ]?in\b/i,
+    /\bdelivery\b/i,
+    /\bregistration\b/i,
+    /\bsales\b/i,
+    /\bmarket share\b/i,
+    /\bdistribution\b/i,
+    /\bdealer\b/i,
+    /\bshowroom\b/i,
+    /\bfleet\b/i,
+    /\bpolicy\b/i,
+    /\bregulation\b/i,
+];
+
+const LOW_VALUE_PATTERNS = [
+    /\bfuel price(s)?\b/i,
+    /\bpetrol price(s)?\b/i,
+    /\bdiesel price(s)?\b/i,
+    /\btraffic accident\b/i,
+    /\broad closure\b/i,
+    /\bparking fine(s)?\b/i,
+    /\bspeed limit\b/i,
+    /\bused car(s)?\b/i,
+    /\bsecond[- ]hand car(s)?\b/i,
+];
+
+function countMatches(patterns, text) {
+    return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function scoreUaeAutomotiveRelevance(item) {
+    const haystack = `${item.source || ''} ${item.title || ''} ${item.snippet || ''} ${item.url || ''}`.toLowerCase();
+    const uaeSignals = countMatches(UAE_PATTERNS, haystack);
+    if (uaeSignals === 0) return { keep: false, score: 0, reason: 'no_uae_signal' };
+
+    const brandSignals = countMatches(BRAND_PATTERNS, haystack);
+    const autoSignals = countMatches(AUTO_TOPIC_PATTERNS, haystack);
+    const marketSignals = countMatches(MARKET_SIGNAL_PATTERNS, haystack);
+    const lowValueSignals = countMatches(LOW_VALUE_PATTERNS, haystack);
+
+    const score = (uaeSignals * 4) + (brandSignals * 3) + (autoSignals * 2) + (marketSignals * 2) - (lowValueSignals * 5);
+
+    if (lowValueSignals > 0 && brandSignals === 0 && marketSignals === 0) {
+        return { keep: false, score, reason: 'low_value_general_news' };
+    }
+
+    if (brandSignals === 0 && autoSignals === 0) {
+        return { keep: false, score, reason: 'no_auto_or_brand_signal' };
+    }
+
+    if (brandSignals === 0 && marketSignals === 0) {
+        return { keep: false, score, reason: 'no_brand_or_market_signal' };
+    }
+
+    return { keep: score >= 7, score, reason: score >= 7 ? 'uae_auto_relevant' : 'score_too_low' };
 }
 
 function extractFeedItems(source, xml, cutoffTime, maxItems = 25) {
@@ -264,13 +393,24 @@ async function collectSingleSource(source, cutoffTime) {
 }
 
 async function handleRSS(req, res) {
-    const days = parseInt(req.query.days, 10) || 3;
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 3, 1), 15);
+    const maxItems = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 5), 60);
     const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
     const diagnostics = await Promise.all(ALL_SOURCES.map((source) => collectSingleSource(source, cutoffTime)));
 
     const seen = new Set();
+    let prefilterSkipped = 0;
     const items = diagnostics
         .flatMap((result) => result.items)
+        .map((item) => {
+            const relevance = scoreUaeAutomotiveRelevance(item);
+            return { ...item, relevanceScore: relevance.score, relevanceReason: relevance.reason, keepByRelevance: relevance.keep };
+        })
+        .filter((item) => {
+            if (item.keepByRelevance) return true;
+            prefilterSkipped += 1;
+            return false;
+        })
         .filter((item) => {
             const normalizedUrl = normalizeUrl(item.url);
             const normalizedTitle = normalizeText(item.title);
@@ -279,11 +419,19 @@ async function handleRSS(req, res) {
             seen.add(dedupeKey);
             return true;
         })
-        .sort((a, b) => b.rawDate - a.rawDate);
+        .sort((a, b) => (b.relevanceScore - a.relevanceScore) || (b.rawDate - a.rawDate))
+        .slice(0, maxItems)
+        .map(({ keepByRelevance, ...item }) => item);
 
     return res.status(200).json({
         success: true,
         timeRange: `${days}d`,
+        prefilter: {
+            skipped: prefilterSkipped,
+            returned: items.length,
+            maxItems,
+            scope: 'uae_only',
+        },
         count: items.length,
         items,
         sources: diagnostics.map(({ items: _items, ...meta }) => meta),

@@ -137,6 +137,125 @@ function normalizeUrl(rawUrl = '') {
     }
 }
 
+const UAE_PATTERNS = [
+    /\buae\b/i,
+    /\bunited arab emirates\b/i,
+    /\bdubai\b/i,
+    /\babu dhabi\b/i,
+    /\bsharjah\b/i,
+    /\bajman\b/i,
+    /\bras al khaimah\b/i,
+    /\bfujairah\b/i,
+    /\bumm al quwain\b/i,
+    /\baed\b/i,
+];
+
+const BRAND_PATTERNS = [
+    /\bchangan\b/i,
+    /\bdeepal\b/i,
+    /\bavatr\b/i,
+    /\bbyd\b/i,
+    /\bdenza\b/i,
+    /\bgeely\b/i,
+    /\bzeekr\b/i,
+    /\blink\s*&\s*co\b/i,
+    /\bchery\b/i,
+    /\bexeed\b/i,
+    /\bjaecoo\b/i,
+    /\bomoda\b/i,
+    /\bmg\b/i,
+    /\bgwm\b/i,
+    /\bhaval\b/i,
+    /\btank\b/i,
+    /\bjetour\b/i,
+    /\bgac\b/i,
+    /\baion\b/i,
+    /\btoyota\b/i,
+    /\bnissan\b/i,
+    /\bhyundai\b/i,
+    /\bkia\b/i,
+    /\bhonda\b/i,
+    /\blexus\b/i,
+    /\bford\b/i,
+    /\bchevrolet\b/i,
+    /\bvolkswagen\b/i,
+    /\bmercedes\b/i,
+    /\bbmw\b/i,
+    /\baudi\b/i,
+    /\bland rover\b/i,
+];
+
+const AUTO_TOPIC_PATTERNS = [
+    /\bauto(motive)?\b/i,
+    /\bcar(s)?\b/i,
+    /\bvehicle(s)?\b/i,
+    /\bev(s)?\b/i,
+    /\belectric vehicle(s)?\b/i,
+    /\bhybrid\b/i,
+    /\bsuv\b/i,
+    /\bsedan\b/i,
+    /\bdealer(ship)?\b/i,
+    /\bshowroom\b/i,
+    /\bservice center\b/i,
+    /\bcharging\b/i,
+];
+
+const MARKET_SIGNAL_PATTERNS = [
+    /\blaunch(ed|es)?\b/i,
+    /\bprice(s|d)?\b/i,
+    /\bdiscount(s|ed)?\b/i,
+    /\boffer(s)?\b/i,
+    /\bpromotion(s)?\b/i,
+    /\bfinance\b/i,
+    /\bzero percent\b/i,
+    /\bwarranty\b/i,
+    /\binsurance\b/i,
+    /\btrade[- ]?in\b/i,
+    /\bdelivery\b/i,
+    /\bregistration\b/i,
+    /\bsales\b/i,
+    /\bmarket share\b/i,
+    /\bdistribution\b/i,
+    /\bdealer\b/i,
+    /\bshowroom\b/i,
+    /\bfleet\b/i,
+    /\bpolicy\b/i,
+    /\bregulation\b/i,
+];
+
+const LOW_VALUE_PATTERNS = [
+    /\bfuel price(s)?\b/i,
+    /\bpetrol price(s)?\b/i,
+    /\bdiesel price(s)?\b/i,
+    /\btraffic accident\b/i,
+    /\broad closure\b/i,
+    /\bparking fine(s)?\b/i,
+    /\bspeed limit\b/i,
+    /\bused car(s)?\b/i,
+    /\bsecond[- ]hand car(s)?\b/i,
+];
+
+function countMatches(patterns, text) {
+    return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function scoreUaeAutomotiveRelevance(item) {
+    const haystack = `${item.source || ''} ${item.title || ''} ${item.snippet || ''} ${item.url || ''}`.toLowerCase();
+    const uaeSignals = countMatches(UAE_PATTERNS, haystack);
+    if (uaeSignals === 0) return { keep: false, score: 0 };
+
+    const brandSignals = countMatches(BRAND_PATTERNS, haystack);
+    const autoSignals = countMatches(AUTO_TOPIC_PATTERNS, haystack);
+    const marketSignals = countMatches(MARKET_SIGNAL_PATTERNS, haystack);
+    const lowValueSignals = countMatches(LOW_VALUE_PATTERNS, haystack);
+    const score = (uaeSignals * 4) + (brandSignals * 3) + (autoSignals * 2) + (marketSignals * 2) - (lowValueSignals * 5);
+
+    if (lowValueSignals > 0 && brandSignals === 0 && marketSignals === 0) return { keep: false, score };
+    if (brandSignals === 0 && autoSignals === 0) return { keep: false, score };
+    if (brandSignals === 0 && marketSignals === 0) return { keep: false, score };
+    return { keep: score >= 7, score };
+}
+
 function normalizeStrategySignals(signals) {
     if (!Array.isArray(signals)) return [];
 
@@ -265,7 +384,9 @@ async function callQwen(apiKey, messages, temperature = 0.1) {
 
 async function qwenAnalyzeItem(item, apiKey) {
     const systemPrompt = `You are a UAE automotive news screener.
-Judge whether the item is directly relevant to the UAE or GCC automotive market and return strict JSON only.
+Judge whether the item is directly relevant to the UAE automotive market and return strict JSON only.
+
+Reject items that are only about the broader GCC, Middle East, or global market unless the title, snippet, source, or URL explicitly mentions UAE, Dubai, Abu Dhabi, another UAE emirate, Emirates, or AED.
 
 If not relevant, return:
 {"relevant":false}
@@ -427,13 +548,18 @@ export default async function handler(req, res) {
         const seen = new Set();
         const rawItems = results
             .flat()
+            .map((item) => {
+                const relevance = scoreUaeAutomotiveRelevance(item);
+                return { ...item, relevanceScore: relevance.score, keepByRelevance: relevance.keep };
+            })
+            .filter((item) => item.keepByRelevance)
             .filter((item) => {
                 const key = normalizeUrl(item.url) || `${normalizeText(item.title)}::${item.date}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
             })
-            .sort((a, b) => b.rawDate - a.rawDate)
+            .sort((a, b) => (b.relevanceScore - a.relevanceScore) || (b.rawDate - a.rawDate))
             .slice(0, 30);
 
         if (rawItems.length === 0) {

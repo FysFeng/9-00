@@ -48,12 +48,20 @@ const ALLOWED_SIGNAL_CATEGORIES = new Set<StrategySignal['category']>([
     'other',
 ]);
 
-const RELEVANCE_HINT_PATTERNS = [
+const UAE_HINT_PATTERNS = [
     /\buae\b/i,
     /\bdubai\b/i,
     /\babu dhabi\b/i,
-    /\bgcc\b/i,
+    /\bsharjah\b/i,
+    /\bajman\b/i,
+    /\bras al khaimah\b/i,
+    /\bfujairah\b/i,
+    /\bumm al quwain\b/i,
     /\bemirates\b/i,
+    /\baed\b/i,
+];
+
+const AUTO_HINT_PATTERNS = [
     /\bev\b/i,
     /\bhybrid\b/i,
     /\bvehicle\b/i,
@@ -63,6 +71,12 @@ const RELEVANCE_HINT_PATTERNS = [
     /\bsuv\b/i,
     /\bsedan\b/i,
     /\bdealer\b/i,
+    /\bshowroom\b/i,
+    /\bservice center\b/i,
+    /\bcharging\b/i,
+];
+
+const MARKET_HINT_PATTERNS = [
     /\blaunch\b/i,
     /\bprice\b/i,
     /\bdiscount\b/i,
@@ -70,8 +84,13 @@ const RELEVANCE_HINT_PATTERNS = [
     /\bwarranty\b/i,
     /\binsurance\b/i,
     /\bdelivery\b/i,
-    /\bcharging\b/i,
     /\bregistration\b/i,
+    /\bsales\b/i,
+    /\bmarket share\b/i,
+    /\bdistribution\b/i,
+    /\bfleet\b/i,
+    /\bpolicy\b/i,
+    /\bregulation\b/i,
 ];
 
 const BRAND_HINT_PATTERNS = [
@@ -98,6 +117,22 @@ const BRAND_HINT_PATTERNS = [
     /\blexus\b/i,
     /\bford\b/i,
 ];
+
+const LOW_VALUE_HINT_PATTERNS = [
+    /\bfuel price(s)?\b/i,
+    /\bpetrol price(s)?\b/i,
+    /\bdiesel price(s)?\b/i,
+    /\btraffic accident\b/i,
+    /\broad closure\b/i,
+    /\bparking fine(s)?\b/i,
+    /\bspeed limit\b/i,
+    /\bused car(s)?\b/i,
+    /\bsecond[- ]hand car(s)?\b/i,
+];
+
+function countMatches(patterns: RegExp[], text: string): number {
+    return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
+}
 
 function extractJsonObject(rawContent: string): string {
     const cleaned = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -151,15 +186,19 @@ function createFallbackItem(
 
 function shouldFallbackWhenRejected(item: RawRSSItem): boolean {
     const haystack = `${item.source} ${item.title} ${item.snippet} ${item.url}`.toLowerCase();
-    const relevanceScore =
-        RELEVANCE_HINT_PATTERNS.reduce((count, pattern) => count + (pattern.test(haystack) ? 1 : 0), 0)
-        + BRAND_HINT_PATTERNS.reduce((count, pattern) => count + (pattern.test(haystack) ? 1 : 0), 0);
+    const uaeSignals = countMatches(UAE_HINT_PATTERNS, haystack);
+    if (uaeSignals === 0) return false;
 
-    if (item.source.startsWith('GNews:') || item.source.startsWith('X:')) {
-        return relevanceScore >= 2;
-    }
+    const brandSignals = countMatches(BRAND_HINT_PATTERNS, haystack);
+    const autoSignals = countMatches(AUTO_HINT_PATTERNS, haystack);
+    const marketSignals = countMatches(MARKET_HINT_PATTERNS, haystack);
+    const lowValueSignals = countMatches(LOW_VALUE_HINT_PATTERNS, haystack);
 
-    return relevanceScore >= 3;
+    if (lowValueSignals > 0 && brandSignals === 0 && marketSignals === 0) return false;
+    if (brandSignals === 0) return false;
+
+    const relevanceScore = (uaeSignals * 4) + (brandSignals * 3) + (autoSignals * 2) + (marketSignals * 2) - (lowValueSignals * 5);
+    return relevanceScore >= 10;
 }
 
 async function qwenExtract(item: RawRSSItem): Promise<{
@@ -168,7 +207,9 @@ async function qwenExtract(item: RawRSSItem): Promise<{
     reason?: string;
 }> {
     const systemPrompt = `You are a UAE automotive news screener.
-Judge whether the item is directly relevant to the UAE or GCC automotive market and return strict JSON only.
+Judge whether the item is directly relevant to the UAE automotive market and return strict JSON only.
+
+Reject items that are only about the broader GCC, Middle East, or global market unless the title, snippet, source, or URL explicitly mentions UAE, Dubai, Abu Dhabi, another UAE emirate, Emirates, or AED.
 
 If not relevant, return:
 {"relevant":false}

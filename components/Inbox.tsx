@@ -30,17 +30,27 @@ const Inbox: React.FC<InboxProps> = ({ onAnalyze, setPendingCount }) => {
     try {
       const rssRes = await fetch('/api/collect?action=rss');
       if (!rssRes.ok) throw new Error("RSS Fetch Failed");
-      const rssData: PendingItem[] = await rssRes.json();
+      const rssData: { items?: Array<{ source: string; title: string; url: string; date: string; snippet: string }> } = await rssRes.json();
+      const rssItems: PendingItem[] = (rssData.items || []).map((item) => ({
+        id: `rss-${item.url}`,
+        title: item.title,
+        snippet: item.snippet,
+        sourceName: item.source,
+        source: item.source,
+        link: item.url,
+        url: item.url,
+        pubDate: item.date,
+        scrapedAt: item.date,
+      }));
 
       // Client-side dedup logic
-      const existingLinks = new Set(items.map(i => i.link));
-      const newItems = rssData.filter(i => !existingLinks.has(i.link));
+      const existingLinks = new Set(items.map(i => i.link || i.url));
+      const newItems = rssItems.filter(i => !existingLinks.has(i.link || i.url));
 
       if (newItems.length > 0) {
         const updatedList = [...newItems, ...items];
         setItems(updatedList);
         setPendingCount(updatedList.length);
-        await fetch('/api/collect?action=pending', { method: 'POST', body: JSON.stringify(updatedList) });
         alert(`Found ${newItems.length} new automotive articles.`);
       } else {
         alert("No new updates found.");
@@ -57,7 +67,9 @@ const Inbox: React.FC<InboxProps> = ({ onAnalyze, setPendingCount }) => {
     const newList = items.filter(i => i.id !== id);
     setItems(newList);
     setPendingCount(newList.length);
-    fetch('/api/collect?action=pending', { method: 'POST', body: JSON.stringify(newList) });
+    if (!id.startsWith('rss-')) {
+      await fetch(`/api/collect?action=pending&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    }
   };
 
   if (isLoading) return <div className="p-10 text-center text-slate-400">Loading Inbox...</div>;
