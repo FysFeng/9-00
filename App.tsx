@@ -6,6 +6,7 @@ import FeedView from './components/FeedView';
 import WorkbenchView from './components/WorkbenchView';
 import ModelTimeline from './components/ModelTimeline';
 import CompetitorTracker from './components/CompetitorTracker';
+import OfferTrackingPage from './components/OfferTrackingPage';
 import { useIntelligenceStore } from './src/store/useIntelligenceStore';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ function App() {
           <Route path="/feed" element={<FeedView />} />
           <Route path="/timeline" element={<ModelTimeline />} />
           <Route path="/tracker" element={<CompetitorTracker />} />
+          <Route path="/offers" element={<OfferTrackingPage />} />
           <Route path="/workbench" element={<WorkbenchView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

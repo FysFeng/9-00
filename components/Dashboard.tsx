@@ -4,7 +4,6 @@ import { generateHeatmapData, getBrandProfile } from '../utils/dashboardHelpers'
 import CompetitorRadar from '../src/components/charts/CompetitorRadar';
 import { NewsType } from '../types';
 import { NEWS_TYPE_LABELS } from '../constants';
-import { OfferAlerts } from './OfferTrackingPanel';
 
 // ─── UAE Policy Monitor ───────────────────────────────────────────────────────
 // Shows the latest Policy-type news items from the actual store data.
@@ -187,8 +186,6 @@ const Dashboard: React.FC = () => {
                     <p className="text-[11px] text-slate-500 font-bold mt-2.5 tracking-[0.2em] uppercase">UAE Auto Market Intelligence</p>
                 </div>
             </div>
-
-            <OfferAlerts compact />
 
             {/* === 1. HEATMAP === */}
             <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60">

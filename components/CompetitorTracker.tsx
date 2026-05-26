@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useIntelligenceStore } from '../src/store/useIntelligenceStore';
 import { NewsItem, StrategySignal, StrategySignalCategory } from '../types';
-import OfferTrackingPanel from './OfferTrackingPanel';
 
 type TrackerRow = {
   key: string;
@@ -254,7 +253,6 @@ export default function CompetitorTracker() {
   const [keywordInput, setKeywordInput] = useState('');
   const [lookbackDays, setLookbackDays] = useState(90);
   const [selectedKey, setSelectedKey] = useState('');
-  const [activeSection, setActiveSection] = useState<'signals' | 'offers'>('signals');
 
   useEffect(() => {
     if (!selectedBrand && brandOptions.length > 0) {
@@ -303,26 +301,6 @@ export default function CompetitorTracker() {
           每一行代表一个品牌车型组合。你先看总表，再点开看变化明细，不需要一条一条读新闻。
         </p>
       </header>
-
-      <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm mb-8">
-        <button
-          onClick={() => setActiveSection('signals')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSection === 'signals' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`}
-        >
-          策略信号
-        </button>
-        <button
-          onClick={() => setActiveSection('offers')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeSection === 'offers' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`}
-        >
-          优惠追踪
-        </button>
-      </div>
-
-      {activeSection === 'offers' ? (
-        <OfferTrackingPanel />
-      ) : (
-        <>
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr_180px] gap-4">
@@ -420,8 +398,6 @@ export default function CompetitorTracker() {
 
       {selectedRow && (
         <DetailTable row={selectedRow} />
-      )}
-        </>
       )}
     </div>
   );
