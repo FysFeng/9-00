@@ -235,7 +235,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* === 2. PRICE EXAMPLES + POLICY MONITOR (sidebar) === */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
                 {/* Offer price examples — full 7 cols */}
                 <div className="lg:col-span-7">
