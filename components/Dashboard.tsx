@@ -1,7 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useIntelligenceStore, SalesViewMode } from '../src/store/useIntelligenceStore';
 import { generateHeatmapData, getBrandProfile } from '../utils/dashboardHelpers';
-import CompetitorRadar from '../src/components/charts/CompetitorRadar';
 import { NewsType } from '../types';
 import { NEWS_TYPE_LABELS } from '../constants';
 import { OfferAlerts } from './OfferTrackingPanel';
@@ -78,10 +77,7 @@ function PolicyMonitor({ allNews }: { allNews: any[] }) {
 
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 const Dashboard: React.FC = () => {
-    const { rawIntelligence, filters, customBrands, salesViewMode, focusedBrand } = useIntelligenceStore();
-
-    const [radarBrandA, setRadarBrandA] = useState(focusedBrand);
-    const [radarBrandB, setRadarBrandB] = useState('Chery 奇瑞');
+    const { rawIntelligence, filters, customBrands, salesViewMode } = useIntelligenceStore();
 
     const visibleBrands = useMemo(() => {
         return filters.selectedBrands.length > 0 ? filters.selectedBrands : customBrands;
@@ -104,9 +100,6 @@ const Dashboard: React.FC = () => {
         }));
         return counts.sort((a, b) => b.count - a.count).slice(0, 5).map(b => b.name);
     }, [visibleBrands, filteredGlobalNews]);
-
-    const actualRadarA = visibleBrands.includes(radarBrandA) ? radarBrandA : (visibleBrands[0] || '');
-    const actualRadarB = visibleBrands.includes(radarBrandB) ? radarBrandB : (visibleBrands.length > 1 ? visibleBrands[1] : visibleBrands[0] || '');
 
     const heatmapData = useMemo(() => generateHeatmapData(filteredGlobalNews, topBrands, 28), [filteredGlobalNews, topBrands]);
     const heatmapDates = useMemo(() => Array.from(new Set(heatmapData.map(d => d.date))).sort(), [heatmapData]);
@@ -188,8 +181,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            <OfferAlerts compact />
-
             {/* === 1. HEATMAP === */}
             <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60">
                 <SectionHeader title="品牌活跃度热力图" subtitle="近 28 天情报分布" />
@@ -243,20 +234,12 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* === 2. RADAR (full width) + POLICY MONITOR (sidebar) === */}
+            {/* === 2. PRICE EXAMPLES + POLICY MONITOR (sidebar) === */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                {/* Competitor Radar — full 7 cols */}
-                <div className="lg:col-span-7 bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 flex flex-col min-h-[400px]">
-                    <SectionHeader title="品牌对比雷达" />
-                    <CompetitorRadar
-                        brandA={actualRadarA}
-                        brandB={actualRadarB}
-                        onBrandAChange={setRadarBrandA}
-                        onBrandBChange={setRadarBrandB}
-                        availableBrands={visibleBrands}
-                        news={filteredGlobalNews}
-                    />
+                {/* Offer price examples — full 7 cols */}
+                <div className="lg:col-span-7">
+                    <OfferAlerts compact />
                 </div>
 
                 {/* Policy Monitor — 5 cols */}
