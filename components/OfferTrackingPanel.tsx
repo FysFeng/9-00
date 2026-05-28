@@ -94,11 +94,13 @@ const priorityModelIds = [
 ];
 
 export function OfferAlerts({ compact = false }: { compact?: boolean }) {
-  const preferredIds = ['tank-300-price-down', 'byd-seal-7-emi-up', 'nissan-altima-fuel', 'byd-shark-6-benefit'];
+  const preferredIds = ['gwm-tank-tank-300-change', 'byd-seal-7-change', 'nissan-altima-change', 'byd-shark-6-change'];
   const preferred = preferredIds
     .map((id) => offerChanges.find((change) => change.id === id))
     .filter(Boolean);
-  const keyChanges = (compact ? preferred.slice(0, 3) : preferred) as typeof offerChanges;
+  const fallback = offerChanges.filter((change) => ['PRICE_DOWN', 'EMI_UP', 'BENEFIT_ADDED'].includes(change.changeType));
+  const alertChanges = preferred.length > 0 ? preferred : fallback;
+  const keyChanges = (compact ? alertChanges.slice(0, 3) : alertChanges.slice(0, 4)) as typeof offerChanges;
 
   return (
     <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60">
