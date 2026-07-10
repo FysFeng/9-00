@@ -1,10 +1,10 @@
 import { NewsItem, NewsType } from '../types';
 
 export interface HeatmapDataPoint {
-    date: string;       // YYYY-MM-DD
+    date: string;
     brand: string;
     count: number;
-    intensity: number;  // 0-4 scale for coloring
+    intensity: number;
 }
 
 export interface BrandStrategyProfile {
@@ -14,42 +14,37 @@ export interface BrandStrategyProfile {
     statusColor: string;
     topKeywords: string[];
     totalNews: number;
-    launchRatio: number; // For detailed checking
+    launchRatio: number;
 }
 
-// --- 1. Heatmap Logic ---
 export const generateHeatmapData = (news: NewsItem[], brands: string[], days: number = 14): HeatmapDataPoint[] => {
     const data: HeatmapDataPoint[] = [];
-    const today = new Date();
+    const sortedDates = news
+        .map((item) => item.date)
+        .filter(Boolean)
+        .sort();
+    const anchorDate = sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : new Date().toISOString().split('T')[0];
+    const anchor = new Date(`${anchorDate}T00:00:00`);
 
-    // Generate last N days strings
-    const dateRange = Array.from({ length: days }, (_, i) => {
-        const d = new Date();
-        d.setDate(today.getDate() - (days - 1 - i));
-        return d.toISOString().split('T')[0];
+    const dateRange = Array.from({ length: days }, (_, index) => {
+        const date = new Date(anchor);
+        date.setDate(anchor.getDate() - (days - 1 - index));
+        return date.toISOString().split('T')[0];
     });
 
-    brands.forEach(brand => {
-        dateRange.forEach(date => {
-            const count = news.filter(n => n.brand === brand && n.date === date).length;
-            // Simple linear intensity mapping: 0=0, 1=1, 2=2, 3+=3
+    brands.forEach((brand) => {
+        dateRange.forEach((date) => {
+            const count = news.filter((item) => item.brand === brand && item.date === date).length;
             const intensity = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 4;
-
-            data.push({
-                date,
-                brand,
-                count,
-                intensity
-            });
+            data.push({ date, brand, count, intensity });
         });
     });
 
     return data;
 };
 
-// --- 2. Battle Card Logic (Hard Rules) ---
 export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyProfile => {
-    const brandNews = news.filter(n => n.brand === brand);
+    const brandNews = news.filter((item) => item.brand === brand);
     const total = brandNews.length;
 
     if (total === 0) {
@@ -57,20 +52,18 @@ export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyP
             brand,
             status: 'Balanced',
             statusLabel: '暂无数据',
-            statusColor: 'bg-slate-100 text-slate-400',
+            statusColor: 'bg-slate-100 text-slate-400 border-slate-200',
             topKeywords: [],
             totalNews: 0,
-            launchRatio: 0
+            launchRatio: 0,
         };
     }
 
-    // Counts
-    const launches = brandNews.filter(n => n.type === NewsType.LAUNCH_PHYSICAL).length;
-    const tactics = brandNews.filter(n => n.type === NewsType.COMPETITOR_TACTICS).length;
-    const service = brandNews.filter(n => n.type === NewsType.NETWORK_SERVICE).length;
-    const strategy = brandNews.filter(n => n.type === NewsType.CORP_STRATEGY).length;
+    const launches = brandNews.filter((item) => item.type === NewsType.LAUNCH_PHYSICAL).length;
+    const tactics = brandNews.filter((item) => item.type === NewsType.COMPETITOR_TACTICS).length;
+    const service = brandNews.filter((item) => item.type === NewsType.NETWORK_SERVICE).length;
+    const strategy = brandNews.filter((item) => item.type === NewsType.CORP_STRATEGY).length;
 
-    // Ratios
     const activeScore = (launches + tactics) / total;
     const brandScore = (service + strategy) / total;
 
@@ -79,7 +72,7 @@ export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyP
     let statusColor = 'bg-blue-50 text-blue-600 border-blue-200';
 
     if (activeScore >= 0.4) {
-        status = 'Aggressive'; // Keeping key internal for now or change if type allows, simpler to change label
+        status = 'Aggressive';
         statusLabel = '高活跃 (High Activity)';
         statusColor = 'bg-red-50 text-red-600 border-red-200';
     } else if (brandScore >= 0.4) {
@@ -88,14 +81,15 @@ export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyP
         statusColor = 'bg-emerald-50 text-emerald-600 border-emerald-200';
     }
 
-    // Extract Top 3 Keywords
-    const allTags = brandNews.flatMap(n => n.tags || []);
     const tagCounts: Record<string, number> = {};
-    allTags.forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1);
+    brandNews.flatMap((item) => item.tags || []).forEach((tag) => {
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    });
+
     const topKeywords = Object.entries(tagCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
-        .map(([t]) => t);
+        .map(([tag]) => tag);
 
     return {
         brand,
@@ -104,13 +98,11 @@ export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyP
         statusColor,
         topKeywords,
         totalNews: total,
-        launchRatio: activeScore
+        launchRatio: activeScore,
     };
 };
 
-// --- 3. Radar Data Helper ---
 export const getRadarData = (brandA: string, brandB: string, news: NewsItem[]) => {
-    // Labels must match DIMENSION_INFO keys in CompetitorRadar.tsx
     const categories = [
         { key: NewsType.LAUNCH_PHYSICAL, label: '新车发布' },
         { key: NewsType.MARKET_SALES, label: '销量数据' },
@@ -119,23 +111,17 @@ export const getRadarData = (brandA: string, brandB: string, news: NewsItem[]) =
         { key: NewsType.CORP_STRATEGY, label: '企业动态' },
     ];
 
-    return categories.map(cat => {
-        const newsA = news.filter(n => n.brand === brandA);
-        const newsB = news.filter(n => n.brand === brandB); // Fixed bug: was brandA
-
-        const countA = newsA.filter(n => n.type === cat.key).length;
-        const countB = newsB.filter(n => n.type === cat.key).length;
-
-        // Normalize to Percentage to allow fair comparison between big and small brands
-        // Or specific Max Value. 
-        // Using raw count capped at 10 for visual clarity, or simple ratio.
-        // Let's use Raw Count for now to show "Volume Difference" too.
+    return categories.map((category) => {
+        const newsA = news.filter((item) => item.brand === brandA);
+        const newsB = news.filter((item) => item.brand === brandB);
+        const countA = newsA.filter((item) => item.type === category.key).length;
+        const countB = newsB.filter((item) => item.type === category.key).length;
 
         return {
-            subject: cat.label,
+            subject: category.label,
             A: countA,
             B: countB,
-            fullMark: Math.max(countA, countB, 4) // Dynamic Axis
+            fullMark: Math.max(countA, countB, 4),
         };
     });
 };
