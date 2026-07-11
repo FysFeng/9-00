@@ -79,6 +79,124 @@ const d = (offset: number) => {
   return date.toISOString().split('T')[0];
 };
 
+type OfferRow = {
+  brand: string;
+  model: string;
+  monthly?: string;
+  price?: string;
+  structure?: string;
+  finance?: string;
+  priceProtection?: string;
+  insurance?: string;
+  registration?: string;
+  service?: string;
+  warranty?: string;
+  roadside?: string;
+  tinting?: string;
+  charging?: string;
+  cashDiscount?: string;
+  note?: string;
+  url?: string;
+};
+
+const cleanOfferValue = (value?: string) => {
+  if (!value || value === '-') return '';
+  return value;
+};
+
+const brandUrl = (brand: string) => {
+  if (brand.includes('BYD')) return 'https://www.byduae.ae/en/';
+  if (brand.includes('Jetour')) return 'https://jetouruae.com/';
+  if (brand.includes('Toyota')) return 'https://www.toyota.ae/';
+  if (brand.includes('GWM')) return 'https://www.gwmuae.com/';
+  if (brand.includes('Nissan')) return 'https://en.nissan-dubai.com/';
+  if (brand.includes('Mitsubishi')) return 'https://www.mitsubishi-motors.ae/';
+  return '';
+};
+
+const offerRows: OfferRow[] = [
+  { brand: 'BYD 比亚迪', model: 'Ti 7', structure: 'AND', insurance: '免费保险', registration: '免费注册' },
+  { brand: 'BYD 比亚迪', model: 'SEAL 7', monthly: 'AED 1,499/月', price: '109,900', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'SONG PLUS', monthly: 'AED 1,699/月', price: '119,900', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'SHARK 6', monthly: 'AED 2,399/月', price: '158,900', structure: 'AND', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'SEALION 7', monthly: 'AED 2,199/月', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养', charging: '1年 ADNOC charging' },
+  { brand: 'BYD 比亚迪', model: 'SEALION 5', monthly: 'AED 1,399/月', price: '89,900', structure: 'AND', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'SEAL', monthly: 'AED 1,999/月', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养', charging: '1年 ADNOC charging' },
+  { brand: 'BYD 比亚迪', model: 'QIN PLUS', monthly: 'AED 1,099/月', price: '74,900', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'ATTO 8', monthly: 'AED 2,399/月', price: '159,900', structure: 'AND', insurance: '免费保险', registration: '免费注册', service: '免费保养' },
+  { brand: 'BYD 比亚迪', model: 'HAN', monthly: 'AED 2,699/月', structure: 'AND', finance: '金融支持', insurance: '免费保险', registration: '免费注册', service: '免费保养', charging: '家庭充电权益' },
+  { brand: 'BYD 比亚迪', model: 'SEAL 6', monthly: 'AED 1,299/月', price: '87,900', structure: 'AND', registration: '免费注册', service: '免费保养' },
+  { brand: 'Jetour 捷途', model: 'T1', monthly: 'AED 1,349/月', structure: 'OR', finance: '3年保险或 VAT 支持', service: '3年 / 30,000 km service package', warranty: '10年 / 1,000,000 km', note: '6个月后付款' },
+  { brand: 'Jetour 捷途', model: 'G700', monthly: 'AED 2,499/月', price: '169,000', structure: 'OR', finance: '3年保险或 VAT 支持', warranty: '1,000,000 km', note: '6个月后付款' },
+  { brand: 'Jetour 捷途', model: 'T2', monthly: 'AED 1,899/月', structure: 'OR', finance: '3年保险或 VAT 支持', service: '3年 / 30,000 km service package', warranty: '10年 / 1,000,000 km', note: '6个月后付款' },
+  { brand: 'Toyota 丰田', model: 'Camry', monthly: 'AED 1,349/月', price: '122,900', structure: 'OR', finance: 'Option: 0% finance up to 5年', insurance: 'Option: included', registration: 'Option: included', service: 'Option: included', warranty: 'Option: extended warranty', tinting: 'Option: tinting', note: '缺少详细信息' },
+  { brand: 'Toyota 丰田', model: 'Land Cruiser', monthly: 'AED 2,999/月', price: '239,900' },
+  { brand: 'Toyota 丰田', model: 'Urban Cruiser', monthly: 'AED 899/月', price: '79,900', structure: 'AND', insurance: 'Included insurance', registration: 'Included registration', service: 'Included servicing', warranty: 'Extended warranty', tinting: 'Included tinting', note: '缺少详细信息' },
+  { brand: 'GWM 长城', model: 'TANK 300', monthly: 'AED 1,899/月', price: '119,900 + VAT', structure: 'AND', priceProtection: 'Yes', insurance: '免费保险', registration: '免费注册', service: '5年 premium service plan', roadside: '5年', tinting: 'Free 3M tinting' },
+  { brand: 'GWM 长城', model: 'TANK 500', monthly: 'AED 2,499/月', price: '159,900 + VAT', structure: 'AND', priceProtection: 'Yes', insurance: '免费保险', registration: '免费注册', service: '5年 premium service plan', roadside: '5年', tinting: 'Free 3M tinting' },
+  { brand: 'GWM 长城', model: 'H7', monthly: 'AED 1,499/月', price: '99,900 + VAT', structure: 'AND + OR', finance: '3年保险或 VAT 支持', priceProtection: 'Yes', service: 'Option B: free 3年 service contract', warranty: '6年 / 200,000 km', roadside: '3-5年' },
+  { brand: 'GWM 长城', model: 'H9', monthly: 'AED 1,799/月', price: '119,900 + VAT', structure: 'AND + OR', finance: '3年保险或 VAT 支持', priceProtection: 'Yes', insurance: 'Option B: insurance support', registration: 'Option B: complimentary registration', service: 'Option B: free 3年 service contract', warranty: '6年 / 200,000 km', roadside: 'Option B + 5年 official roadside', tinting: 'Option B: window tinting' },
+  { brand: 'GWM 长城', model: 'Jolion Pro', monthly: 'AED 1,049/月', price: '69,900 + VAT', structure: 'AND + OR', priceProtection: 'Yes', registration: 'Option A: complimentary registration', service: 'Option A: free 3年 service contract', warranty: '6年 / 200,000 km', roadside: '5年', cashDiscount: 'Option B: AED 10,000 cash discount' },
+  { brand: 'Nissan 日产', model: 'Altima', monthly: 'AED 1,950/月', price: '110,500', structure: 'AND', service: '5年 / 100,000 km', warranty: '5年', roadside: '5年' },
+  { brand: 'Nissan 日产', model: 'X-Trail', monthly: 'AED 1,890/月', price: '103,900', structure: 'AND', service: '5年 / 100,000 km', warranty: '5年', roadside: '5年' },
+  { brand: 'Nissan 日产', model: 'Kicks', monthly: 'AED 1,300/月', structure: 'AND', service: '3年 / 60,000 km', warranty: '5年', roadside: '5年' },
+  { brand: 'Nissan 日产', model: 'Patrol', structure: 'AND', service: 'Free 5年 service', warranty: '5年', roadside: '5年' },
+  { brand: 'Mitsubishi 三菱', model: 'Outlander', price: '79,900*', note: '无活动' },
+];
+
+const buildOfferSignals = (row: OfferRow): NewsItem['strategySignals'] => {
+  const signals: NonNullable<NewsItem['strategySignals']> = [];
+  const base = { model: row.model, currency: 'AED' };
+
+  if (cleanOfferValue(row.price) || cleanOfferValue(row.monthly)) {
+    signals.push({
+      category: 'price',
+      action: `${row.model} 当前报价更新`,
+      ...base,
+      msrp: cleanOfferValue(row.price),
+      current_value: [cleanOfferValue(row.price) && `起售价 AED ${cleanOfferValue(row.price)}`, cleanOfferValue(row.monthly) && `月供 ${cleanOfferValue(row.monthly)}`].filter(Boolean).join(' / '),
+      note: row.structure ? `Offer Structure: ${row.structure}` : undefined,
+    });
+  }
+
+  if (cleanOfferValue(row.finance)) signals.push({ category: 'finance', action: '金融方案/付款支持', ...base, current_value: cleanOfferValue(row.finance) });
+  if (cleanOfferValue(row.priceProtection)) signals.push({ category: 'price', action: '价格保护', ...base, current_value: cleanOfferValue(row.priceProtection) });
+  if (cleanOfferValue(row.insurance)) signals.push({ category: 'insurance', action: '保险权益', ...base, current_value: cleanOfferValue(row.insurance) });
+  if (cleanOfferValue(row.registration)) signals.push({ category: 'service', action: '注册权益', ...base, current_value: cleanOfferValue(row.registration) });
+  if (cleanOfferValue(row.service)) signals.push({ category: 'service', action: '保养/服务权益', ...base, current_value: cleanOfferValue(row.service) });
+  if (cleanOfferValue(row.warranty)) signals.push({ category: 'service', action: '质保权益', ...base, current_value: cleanOfferValue(row.warranty) });
+  if (cleanOfferValue(row.roadside)) signals.push({ category: 'service', action: '道路救援权益', ...base, current_value: cleanOfferValue(row.roadside) });
+  if (cleanOfferValue(row.tinting)) signals.push({ category: 'bundle', action: '贴膜权益', ...base, current_value: cleanOfferValue(row.tinting) });
+  if (cleanOfferValue(row.charging)) signals.push({ category: 'charging', action: '充电权益', ...base, current_value: cleanOfferValue(row.charging) });
+  if (cleanOfferValue(row.cashDiscount)) signals.push({ category: 'price', action: '现金折扣', ...base, current_value: cleanOfferValue(row.cashDiscount) });
+  if (cleanOfferValue(row.note) && row.note !== '无活动') signals.push({ category: 'other', action: '备注', ...base, current_value: cleanOfferValue(row.note) });
+
+  return signals;
+};
+
+const OFFER_TRACKING_NEWS: NewsItem[] = offerRows
+  .map((row, index) => {
+    const signals = buildOfferSignals(row);
+    return {
+      id: `offer-${index + 1}`,
+      title: `${row.brand} ${row.model} 优惠价格更新`,
+      summary: `${row.model} 已按 offer info.xlsx 更新价格与权益。${row.price ? `起售价 AED ${row.price}。` : ''}${row.monthly ? `月供 ${row.monthly}。` : ''}`,
+      original_text: '',
+      url: row.url || brandUrl(row.brand),
+      source: 'offer info.xlsx',
+      date: d(0),
+      brand: row.brand,
+      type: NewsType.COMPETITOR_TACTICS,
+      sentiment: 'neutral' as const,
+      tags: ['价格追踪', '优惠权益', row.model],
+      model: row.model,
+      msrp: cleanOfferValue(row.price),
+      currency: 'AED',
+      strategySignals: signals,
+    };
+  })
+  .filter((item) => item.strategySignals && item.strategySignals.length > 0);
+
 export const INITIAL_NEWS: NewsItem[] = [
   // --- TOYOTA: The Incumbent (Defensive Strategy) ---
   {
@@ -148,31 +266,7 @@ export const INITIAL_NEWS: NewsItem[] = [
     brand: "BYD 比亚迪",
     type: NewsType.COMPETITOR_TACTICS,
     sentiment: "neutral",
-    tags: ["价格战", "价格调整", "Atto 3"],
-    model: "Atto 3",
-    msrp: "118,900",
-    currency: "AED",
-    strategySignals: [
-      {
-        category: "price",
-        action: "官方展示价下探，紧凑级 EV 价格锚点前移",
-        model: "Atto 3",
-        msrp: "118,900",
-        currency: "AED",
-        previous_value: "AED 129,900",
-        current_value: "AED 118,900",
-        note: "展示样例：用于价格变化追踪看板",
-        raw_excerpt: "Official UAE offer tracker sample"
-      },
-      {
-        category: "finance",
-        action: "配合低首付/分期金融话术强化转化",
-        model: "Atto 3",
-        currency: "AED",
-        current_value: "低首付金融方案",
-        note: "展示样例：官网优惠页监控项"
-      }
-    ]
+    tags: ["价格战", "价格调整", "Atto 3"]
   },
   {
     id: uuid(),
@@ -230,116 +324,7 @@ export const INITIAL_NEWS: NewsItem[] = [
     sentiment: "positive",
     tags: ["沙漠测试", "耐久性", "营销活动"]
   },
-  {
-    id: uuid(),
-    title: "吉利 UAE Monjaro 官方优惠价进入重点监控",
-    summary: "用于演示官网价格追踪：Monjaro 展示价与金融权益同步进入竞品优惠看板。",
-    original_text: "",
-    url: "https://www.geely.ae/en",
-    source: "Geely UAE Official Offers",
-    date: d(-1),
-    brand: "Geely 吉利",
-    type: NewsType.COMPETITOR_TACTICS,
-    sentiment: "neutral",
-    tags: ["价格追踪", "官方优惠", "Monjaro"],
-    model: "Monjaro",
-    msrp: "137,900",
-    currency: "AED",
-    strategySignals: [
-      {
-        category: "price",
-        action: "旗舰 SUV 展示价下修，压缩同级燃油 SUV 价格带",
-        model: "Monjaro",
-        msrp: "137,900",
-        currency: "AED",
-        previous_value: "AED 149,900",
-        current_value: "AED 137,900",
-        note: "展示样例：基于 Geely UAE 官方优惠页监控",
-        raw_excerpt: "Official UAE offer tracker sample"
-      },
-      {
-        category: "bundle",
-        action: "叠加保养/质保权益，提升落地价值感",
-        model: "Monjaro",
-        currency: "AED",
-        current_value: "保养权益包",
-        note: "展示样例：官网优惠页监控项"
-      }
-    ]
-  },
-  {
-    id: uuid(),
-    title: "BYD UAE Sealion 7 进入限时权益追踪",
-    summary: "用于演示官网价格追踪：Sealion 7 以金融方案和保险权益形成促销组合。",
-    original_text: "",
-    url: "https://www.byduae.ae/en/",
-    source: "BYD UAE Official Offers",
-    date: d(-2),
-    brand: "BYD 比亚迪",
-    type: NewsType.COMPETITOR_TACTICS,
-    sentiment: "neutral",
-    tags: ["价格追踪", "限时权益", "Sealion 7"],
-    model: "Sealion 7",
-    msrp: "169,900",
-    currency: "AED",
-    strategySignals: [
-      {
-        category: "insurance",
-        action: "新增首年保险权益，降低首年拥车成本",
-        model: "Sealion 7",
-        msrp: "169,900",
-        currency: "AED",
-        previous_value: "无首年保险",
-        current_value: "首年保险权益",
-        note: "展示样例：基于 BYD UAE 官方优惠页监控"
-      },
-      {
-        category: "finance",
-        action: "月供门槛下探，强化新能源 SUV 转化",
-        model: "Sealion 7",
-        currency: "AED",
-        previous_value: "AED 3,250/月",
-        current_value: "AED 2,890/月",
-        note: "展示样例：价格/金融组合促销"
-      }
-    ]
-  },
-  {
-    id: uuid(),
-    title: "iCAUR UAE V27 REEV 官方优惠进入奇瑞体系追踪",
-    summary: "用于演示官网价格追踪：iCAUR 作为奇瑞体系新能源越野品牌，V27 REEV 进入促销变化监控。",
-    original_text: "",
-    url: "https://icauruae.com/",
-    source: "iCAUR UAE Official Offers",
-    date: d(-3),
-    brand: "Chery iCAUR",
-    type: NewsType.COMPETITOR_TACTICS,
-    sentiment: "neutral",
-    tags: ["价格追踪", "REEV", "官方优惠"],
-    model: "V27 REEV",
-    msrp: "139,900",
-    currency: "AED",
-    strategySignals: [
-      {
-        category: "price",
-        action: "预售展示价下探，强化增程越野 SUV 入门吸引力",
-        model: "V27 REEV",
-        msrp: "139,900",
-        currency: "AED",
-        previous_value: "AED 149,900",
-        current_value: "AED 139,900",
-        note: "展示样例：基于 iCAUR UAE 官方优惠页监控"
-      },
-      {
-        category: "trade_in",
-        action: "置换补贴加入报价口径，推动燃油 SUV 用户转化",
-        model: "V27 REEV",
-        currency: "AED",
-        current_value: "AED 5,000 置换补贴",
-        note: "展示样例：价格/置换组合促销"
-      }
-    ]
-  },
+  ...OFFER_TRACKING_NEWS,
 
   // --- FILLER DATA (For Charts) ---
   ...Array.from({ length: 5 }).map((_, i) => ({
