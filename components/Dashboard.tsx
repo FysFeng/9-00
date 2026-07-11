@@ -203,17 +203,19 @@ const Dashboard: React.FC = () => {
     }, [rawIntelligence, filters.startDate, filters.endDate, filters.selectedTypes, visibleBrands]);
 
     const topBrands = useMemo(() => {
-        const counts = visibleBrands.map((brand) => ({
-            name: brand,
-            count: filteredGlobalNews.filter((item) => item.brand === brand).length,
-        }));
+        const priorityRank = new Map(HEATMAP_PRIORITY_BRANDS.map((brand, index) => [brand, index]));
+        const counts = visibleBrands
+            .map((brand) => ({
+                name: brand,
+                count: filteredGlobalNews.filter((item) => item.brand === brand).length,
+                priority: priorityRank.get(brand) ?? 999,
+            }))
+            .filter((brand) => brand.count > 0);
         const sortedBrands = counts
-            .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name))
+            .sort((a, b) => (b.count - a.count) || (a.priority - b.priority) || a.name.localeCompare(b.name))
             .map((brand) => brand.name);
 
-        const focusBrands = HEATMAP_PRIORITY_BRANDS.filter((brand) => visibleBrands.includes(brand));
-        const supplementalBrands = sortedBrands.filter((brand) => !focusBrands.includes(brand));
-        return [...focusBrands, ...supplementalBrands].slice(0, 5);
+        return sortedBrands.slice(0, 5);
     }, [visibleBrands, filteredGlobalNews]);
 
     const heatmapData = useMemo(() => generateHeatmapData(filteredGlobalNews, topBrands, 28), [filteredGlobalNews, topBrands]);
@@ -258,16 +260,6 @@ const Dashboard: React.FC = () => {
         return { backgroundColor: `hsl(${getBrandHue(brand)}, ${saturation}%, ${lightness}%)` };
     };
 
-    const getPresentationIntensity = (brand: string, date: string, actualIntensity: number) => {
-        if (actualIntensity > 0) return actualIntensity;
-        const day = Number(date.slice(-2)) || 1;
-        if (brand.includes('BYD')) return [0, 2, 3, 1, 4, 2, 0][day % 7];
-        if (brand.includes('Geely')) return [1, 0, 2, 3, 2, 0, 1][day % 7];
-        if (brand.includes('Chery')) return [0, 1, 2, 0, 3, 1, 2][day % 7];
-        if (brand.includes('Changan')) return [1, 2, 0, 1, 2, 1, 0][day % 7];
-        return actualIntensity;
-    };
-
     const getModeTitle = () => {
         switch (salesViewMode) {
             case SalesViewMode.CHANGAN_VS_CHALLENGERS:
@@ -294,7 +286,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60">
-                <SectionHeader title="品牌活跃度热力图" subtitle={`${heatmapRangeLabel} · 重点竞品 Top 5`} />
+                <SectionHeader title="品牌活跃度热力图" subtitle={`${heatmapRangeLabel} · 按实际记录 Top 5`} />
                 <div className="overflow-x-auto custom-scrollbar pb-4">
                     <div className="min-w-max">
                         <div className="flex gap-1 mb-2 ml-[120px]">
@@ -313,12 +305,11 @@ const Dashboard: React.FC = () => {
                                     <div className="flex gap-1.5">
                                         {heatmapDates.map((date) => {
                                             const point = heatmapData.find((item) => item.brand === brand && item.date === date);
-                                            const actualIntensity = point ? point.intensity : 0;
-                                            const intensity = getPresentationIntensity(brand, date, actualIntensity);
+                                            const intensity = point ? point.intensity : 0;
                                             return (
                                                 <div
                                                     key={`${brand}-${date}`}
-                                                    title={`${brand} ${date}: ${point?.count || 0} 条${actualIntensity === 0 && intensity > 0 ? '（演示态势）' : ''}`}
+                                                    title={`${brand} ${date}: ${point?.count || 0} 条`}
                                                     style={getIntensityStyle(intensity, brand)}
                                                     className="w-8 h-8 rounded shrink-0 transition-all duration-300 hover:scale-110 hover:-translate-y-1 hover:shadow-md cursor-default"
                                                 />
