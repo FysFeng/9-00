@@ -14,6 +14,11 @@ type TrackerRow = {
   allRecords: SignalRecord[];
 };
 
+type BrandOption = {
+  label: string;
+  value: string;
+};
+
 type SignalRecord = {
   id: string;
   date: string;
@@ -59,8 +64,40 @@ const PRIMARY_COLUMNS: StrategySignalCategory[] = [
 ];
 
 const LOOKBACK_OPTIONS = [30, 60, 90, 180];
+const PAGE_SIZE = 10;
 
-const isMetaBrand = (brand: string) => brand.includes('政策') || brand.startsWith('Other');
+const BRAND_NORMALIZATION_RULES: Array<{ label: string; patterns: RegExp[] }> = [
+  { label: 'BYD 比亚迪', patterns: [/\bbyd\b/i, /比亚迪/] },
+  { label: 'Jetour 捷途', patterns: [/\bjetour\b/i, /捷途/] },
+  { label: 'Toyota 丰田', patterns: [/\btoyota\b/i, /丰田/] },
+  { label: 'GWM 长城', patterns: [/\bgwm\b/i, /\bhaval\b/i, /\btank\b/i, /长城/] },
+  { label: 'Nissan 日产', patterns: [/\bnissan\b/i, /日产/] },
+  { label: 'Mitsubishi 三菱', patterns: [/\bmitsubishi\b/i, /三菱/] },
+  { label: 'Geely 吉利', patterns: [/\bgeely\b/i, /吉利/] },
+  { label: 'Chery iCAUR', patterns: [/\bicaur\b/i, /奇瑞/] },
+  { label: 'MG 名爵', patterns: [/\bmg\b/i, /名爵/] },
+];
+
+const normalizeBrandName = (brand: string = '') => {
+  const trimmed = brand.trim();
+  if (!trimmed) return '';
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'other'
+    || lower.startsWith('other ')
+    || lower.includes('policy')
+    || trimmed.includes('政策')
+    || trimmed.includes('鏀跨瓥')
+  ) {
+    return '';
+  }
+
+  return BRAND_NORMALIZATION_RULES.find((rule) =>
+    rule.patterns.some((pattern) => pattern.test(trimmed)),
+  )?.label || trimmed;
+};
+
+const isMetaBrand = (brand: string) => !normalizeBrandName(brand);
 
 const normalizeText = (value: string = '') =>
   value
@@ -88,6 +125,16 @@ const formatSignalCell = (record?: SignalRecord) => {
 
   return parts.join(' | ');
 };
+
+const pickCategoryText = (row: TrackerRow, categories: StrategySignalCategory[]) => {
+  const values = categories
+    .map((category) => formatSignalCell(row.latestByCategory[category]))
+    .filter((value) => value && value !== '-');
+  return values.length > 0 ? values.join('；') : '-';
+};
+
+const getRowPage = (rows: TrackerRow[], page: number) =>
+  rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
 const hasStructuredSignals = (items: NewsItem[]) =>
   items.some((item) => item.strategySignals && item.strategySignals.length > 0);
@@ -118,7 +165,7 @@ function buildSignalRecords(items: NewsItem[], cutoffDate: string) {
       records.push({
         id: `${item.id}-${index}`,
         date: item.date,
-        brand: item.brand,
+        brand: normalizeBrandName(item.brand),
         model,
         category: signal.category,
         action: signal.action,
@@ -142,6 +189,7 @@ function buildTrackerRows(records: SignalRecord[]) {
   const rowMap = new Map<string, TrackerRow>();
 
   for (const record of records) {
+    if (!record.brand) continue;
     const key = `${record.brand}::${normalizeText(record.model)}`;
     const existing = rowMap.get(key);
 
@@ -243,22 +291,25 @@ export default function CompetitorTracker() {
   const { rawIntelligence } = useIntelligenceStore();
   const hasSignals = useMemo(() => hasStructuredSignals(rawIntelligence), [rawIntelligence]);
 
-  const brandOptions = useMemo(
-    () =>
-      Array.from(new Set(rawIntelligence.map((item) => item.brand)))
-        .filter((brand) => brand && !isMetaBrand(brand))
-        .sort((a, b) => a.localeCompare(b)),
-    [rawIntelligence],
-  );
+  const brandOptions = useMemo<BrandOption[]>(() => {
+    const brands = Array.from(new Set(
+      rawIntelligence
+        .filter((item) => item.strategySignals && item.strategySignals.length > 0)
+        .map((item) => normalizeBrandName(item.brand))
+        .filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b));
 
-  const [selectedBrand, setSelectedBrand] = useState('');
+    return [{ label: '全部品牌', value: 'ALL' }, ...brands.map((brand) => ({ label: brand, value: brand }))];
+  }, [rawIntelligence]);
+
+  const [selectedBrand, setSelectedBrand] = useState('ALL');
   const [keywordInput, setKeywordInput] = useState('');
   const [lookbackDays, setLookbackDays] = useState(90);
-  const [selectedKey, setSelectedKey] = useState('');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    if (!selectedBrand && brandOptions.length > 0) {
-      setSelectedBrand(brandOptions[0]);
+    if (!brandOptions.some((option) => option.value === selectedBrand)) {
+      setSelectedBrand('ALL');
     }
   }, [brandOptions, selectedBrand]);
 
@@ -271,23 +322,24 @@ export default function CompetitorTracker() {
   const keyword = useMemo(() => normalizeText(keywordInput), [keywordInput]);
 
   const signalRecords = useMemo(() => {
-    const scoped = rawIntelligence.filter((item) => item.brand === selectedBrand);
+    const scoped = rawIntelligence.filter((item) => {
+      if (selectedBrand === 'ALL') return !isMetaBrand(item.brand);
+      return normalizeBrandName(item.brand) === selectedBrand;
+    });
     return buildSignalRecords(scoped, cutoffDate).filter((record) => matchesKeyword(record, keyword));
   }, [rawIntelligence, selectedBrand, cutoffDate, keyword]);
 
   const rows = useMemo(() => buildTrackerRows(signalRecords), [signalRecords]);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = useMemo(() => getRowPage(rows, Math.min(page, totalPages)), [rows, page, totalPages]);
 
   useEffect(() => {
-    if (!rows.length) {
-      setSelectedKey('');
-      return;
-    }
-    if (!selectedKey || !rows.some((row) => row.key === selectedKey)) {
-      setSelectedKey(rows[0].key);
-    }
-  }, [rows, selectedKey]);
+    setPage(1);
+  }, [selectedBrand, keyword, lookbackDays]);
 
-  const selectedRow = rows.find((row) => row.key === selectedKey) || null;
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <div className="p-8 lg:p-10 max-w-[1500px] mx-auto animate-fadeIn">
@@ -300,7 +352,7 @@ export default function CompetitorTracker() {
         </div>
         <h1 className="text-3xl font-black text-slate-900 tracking-tight">竞品优惠追踪</h1>
         <p className="mt-2 text-sm text-slate-500">
-          每一行代表一个品牌车型组合。先看总表，再点开查看价格、金融、保险、置换和服务变化明细。
+          每一行代表一个品牌车型组合。默认展示全部品牌，按 10 行分页，方便直接汇报和截图。
         </p>
       </header>
 
@@ -315,7 +367,7 @@ export default function CompetitorTracker() {
               disabled={brandOptions.length === 0}
             >
               {brandOptions.length > 0 ? brandOptions.map((brand) => (
-                <option key={brand} value={brand}>{brand}</option>
+                <option key={brand.value} value={brand.value}>{brand.label}</option>
               )) : (
                 <option value="">暂无品牌数据</option>
               )}
@@ -351,7 +403,7 @@ export default function CompetitorTracker() {
             <h2 className="text-lg font-bold text-slate-900">车型策略总表</h2>
             <p className="text-sm text-slate-500 mt-1">展示每个车型最近的价格、金融、保险、置换、服务和其他策略。</p>
           </div>
-          <span className="text-xs text-slate-400">共 {rows.length} 个车型</span>
+          <span className="text-xs text-slate-400">共 {rows.length} 个车型 · 第 {Math.min(page, totalPages)} / {totalPages} 页</span>
         </div>
 
         {rows.length === 0 ? (
@@ -365,48 +417,85 @@ export default function CompetitorTracker() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[1180px] text-sm table-fixed">
+            <table className="min-w-[1040px] text-sm table-fixed">
               <thead className="bg-white">
                 <tr className="border-b border-slate-200 text-left text-slate-500">
-                  <th className="w-[150px] px-5 py-3 font-semibold">品牌</th>
-                  <th className="w-[150px] px-5 py-3 font-semibold">车型</th>
-                  <th className="w-[130px] px-5 py-3 font-semibold">指导价</th>
-                  {PRIMARY_COLUMNS.map((category) => (
-                    <th key={category} className="w-[180px] px-5 py-3 font-semibold">{CATEGORY_LABELS[category]}</th>
-                  ))}
-                  <th className="w-[120px] px-5 py-3 font-semibold">最近变化</th>
-                  <th className="w-[80px] px-5 py-3 font-semibold">记录数</th>
+                  <th className="w-[130px] px-5 py-3 font-semibold">品牌</th>
+                  <th className="w-[135px] px-5 py-3 font-semibold">车型</th>
+                  <th className="w-[190px] px-5 py-3 font-semibold">价格/月供</th>
+                  <th className="w-[190px] px-5 py-3 font-semibold">金融/保险</th>
+                  <th className="w-[210px] px-5 py-3 font-semibold">服务权益</th>
+                  <th className="w-[190px] px-5 py-3 font-semibold">其他权益</th>
+                  <th className="w-[110px] px-5 py-3 font-semibold">日期</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
-                  const isActive = row.key === selectedKey;
-                  return (
-                    <tr
-                      key={row.key}
-                      onClick={() => setSelectedKey(row.key)}
-                      className={`border-b border-slate-100 cursor-pointer transition-colors ${isActive ? 'bg-blue-50/70' : 'hover:bg-slate-50'}`}
-                    >
+                {pageRows.map((row) => (
+                    <tr key={row.key} className="border-b border-slate-100 align-top hover:bg-slate-50">
                       <td className="px-5 py-4 font-medium text-slate-700 break-words">{row.brand}</td>
                       <td className="px-5 py-4 font-semibold text-slate-900 break-words">{row.model}</td>
-                      <td className="px-5 py-4 text-slate-600 break-words">{row.msrp ? `${row.currency} ${row.msrp}` : '-'}</td>
-                      {PRIMARY_COLUMNS.map((category) => (
-                        <td key={category} className="px-5 py-4 text-slate-600 break-words leading-relaxed">
-                          {formatSignalCell(row.latestByCategory[category])}
-                        </td>
-                      ))}
+                      <td className="px-5 py-4 text-slate-600 break-words leading-relaxed">
+                        {pickCategoryText(row, ['price'])}
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 break-words leading-relaxed">
+                        {pickCategoryText(row, ['finance', 'insurance'])}
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 break-words leading-relaxed">
+                        {pickCategoryText(row, ['service'])}
+                      </td>
+                      <td className="px-5 py-4 text-slate-600 break-words leading-relaxed">
+                        {pickCategoryText(row, ['bundle', 'charging', 'trade_in', 'other'])}
+                      </td>
                       <td className="px-5 py-4 text-slate-500 font-mono">{row.latestChangeDate || '-'}</td>
-                      <td className="px-5 py-4 text-slate-500">{row.recordsCount}</td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
         )}
+        {rows.length > 0 && (
+          <div className="px-5 py-4 border-t border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="text-xs text-slate-500">
+              显示第 {(Math.min(page, totalPages) - 1) * PAGE_SIZE + 1} - {Math.min(Math.min(page, totalPages) * PAGE_SIZE, rows.length)} 行，共 {rows.length} 行
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page <= 1}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                上一页
+              </button>
+              {Array.from({ length: totalPages }).map((_, index) => {
+                const pageNumber = index + 1;
+                return (
+                  <button
+                    type="button"
+                    key={pageNumber}
+                    onClick={() => setPage(pageNumber)}
+                    className={`w-9 h-9 rounded-lg border text-sm font-bold ${
+                      pageNumber === Math.min(page, totalPages)
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        )}
       </section>
-
-      {selectedRow && <DetailTable row={selectedRow} />}
     </div>
   );
 }
