@@ -164,6 +164,57 @@ function PolicyMonitor({ allNews }: { allNews: NewsItem[] }) {
 
 function PriceChangePreview({ items }: { items: NewsItem[] }) {
     const previews = useMemo<SignalPreview[]>(() => {
+        const toPreview = (item: NewsItem, signalIndex = 0): SignalPreview | null => {
+            const signals = item.strategySignals || [];
+            const priceSignal = signals.find((signal) => signal.category === 'price');
+            const supportSignals = signals.filter((signal) => signal.category !== 'price');
+            const primarySignal = priceSignal || signals[signalIndex];
+            if (!primarySignal) return null;
+
+            const supportText = supportSignals
+                .slice(0, 3)
+                .map((signal) => signal.current_value || signal.note || signal.action)
+                .filter(Boolean)
+                .join('；');
+
+            return {
+                id: `${item.id}-preview`,
+                brand: item.brand,
+                model: primarySignal.model || item.model || getBrandShortName(item.brand),
+                date: item.date,
+                source: item.source,
+                category: primarySignal.category,
+                previousValue: primarySignal.previous_value || '',
+                currentValue: primarySignal.current_value || primarySignal.msrp || item.msrp || supportText || '',
+                action: item.source === 'offer info.xlsx'
+                    ? `${item.model || primarySignal.model} 当前 offer 更新`
+                    : primarySignal.action,
+                note: supportText || primarySignal.note || primarySignal.raw_excerpt || '',
+            };
+        };
+
+        const offerItems = items.filter((item) => item.source === 'offer info.xlsx' && item.strategySignals?.length);
+        if (offerItems.length > 0) {
+            const groupedByBrand = new Map<string, SignalPreview[]>();
+            offerItems.forEach((item) => {
+                const preview = toPreview(item);
+                if (!preview) return;
+                const brand = getBrandShortName(preview.brand);
+                groupedByBrand.set(brand, [...(groupedByBrand.get(brand) || []), preview]);
+            });
+
+            const brandOrder = ['BYD', 'GWM', 'Jetour', 'Toyota', 'Nissan', 'Mitsubishi'];
+            const featured = brandOrder
+                .map((brand) => groupedByBrand.get(brand)?.find((item) => item.currentValue) || groupedByBrand.get(brand)?.[0])
+                .filter(Boolean) as SignalPreview[];
+            const featuredIds = new Set(featured.map((item) => item.id));
+            const rest = offerItems
+                .map((item) => toPreview(item))
+                .filter((item): item is SignalPreview => Boolean(item) && !featuredIds.has(item.id));
+
+            return [...featured, ...rest].slice(0, 5);
+        }
+
         return items
             .flatMap((item) =>
                 (item.strategySignals || []).map((signal, index) => ({
@@ -181,19 +232,19 @@ function PriceChangePreview({ items }: { items: NewsItem[] }) {
             )
             .filter((item) => item.model && (item.previousValue || item.currentValue || item.action))
             .sort((a, b) => b.date.localeCompare(a.date))
-            .slice(0, 3);
+            .slice(0, 5);
     }, [items]);
 
     return (
         <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 h-full">
-            <SectionHeader title="价格变化示例" subtitle="完整表格见竞品优惠追踪" accent="bg-gradient-to-b from-emerald-500 to-teal-600" />
+            <SectionHeader title="价格变化示例" subtitle="offer info.xlsx 摘要" accent="bg-gradient-to-b from-emerald-500 to-teal-600" />
             {previews.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center">
                     <p className="text-sm font-semibold text-slate-400">暂无结构化优惠变化</p>
                     <p className="text-xs text-slate-400 mt-1">采集并由 AI 提取价格、金融、保险等信号后会显示在这里</p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1 custom-scrollbar">
                     {previews.map((item) => {
                         const hasValueChange = Boolean(item.previousValue || item.currentValue);
                         return (
