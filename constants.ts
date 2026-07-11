@@ -15,6 +15,7 @@ export const DEFAULT_BRANDS = [
   "Geely Lynk & Co 领克",
   "BYD DENZA 腾势",
   "Chery Exeed 星途",
+  "Chery iCAUR",
   "SAIC MG 名爵",
   "Xpeng 小鹏",
   "NIO 蔚来",
@@ -147,7 +148,31 @@ export const INITIAL_NEWS: NewsItem[] = [
     brand: "BYD 比亚迪",
     type: NewsType.COMPETITOR_TACTICS,
     sentiment: "neutral",
-    tags: ["价格战", "价格调整", "Atto 3"]
+    tags: ["价格战", "价格调整", "Atto 3"],
+    model: "Atto 3",
+    msrp: "118,900",
+    currency: "AED",
+    strategySignals: [
+      {
+        category: "price",
+        action: "官方展示价下探，紧凑级 EV 价格锚点前移",
+        model: "Atto 3",
+        msrp: "118,900",
+        currency: "AED",
+        previous_value: "AED 129,900",
+        current_value: "AED 118,900",
+        note: "展示样例：用于价格变化追踪看板",
+        raw_excerpt: "Official UAE offer tracker sample"
+      },
+      {
+        category: "finance",
+        action: "配合低首付/分期金融话术强化转化",
+        model: "Atto 3",
+        currency: "AED",
+        current_value: "低首付金融方案",
+        note: "展示样例：官网优惠页监控项"
+      }
+    ]
   },
   {
     id: uuid(),
@@ -204,6 +229,116 @@ export const INITIAL_NEWS: NewsItem[] = [
     type: NewsType.LAUNCH_PHYSICAL, // Treated as major event
     sentiment: "positive",
     tags: ["沙漠测试", "耐久性", "营销活动"]
+  },
+  {
+    id: uuid(),
+    title: "吉利 UAE Monjaro 官方优惠价进入重点监控",
+    summary: "用于演示官网价格追踪：Monjaro 展示价与金融权益同步进入竞品优惠看板。",
+    original_text: "",
+    url: "https://www.geely.ae/en",
+    source: "Geely UAE Official Offers",
+    date: d(-1),
+    brand: "Geely 吉利",
+    type: NewsType.COMPETITOR_TACTICS,
+    sentiment: "neutral",
+    tags: ["价格追踪", "官方优惠", "Monjaro"],
+    model: "Monjaro",
+    msrp: "137,900",
+    currency: "AED",
+    strategySignals: [
+      {
+        category: "price",
+        action: "旗舰 SUV 展示价下修，压缩同级燃油 SUV 价格带",
+        model: "Monjaro",
+        msrp: "137,900",
+        currency: "AED",
+        previous_value: "AED 149,900",
+        current_value: "AED 137,900",
+        note: "展示样例：基于 Geely UAE 官方优惠页监控",
+        raw_excerpt: "Official UAE offer tracker sample"
+      },
+      {
+        category: "bundle",
+        action: "叠加保养/质保权益，提升落地价值感",
+        model: "Monjaro",
+        currency: "AED",
+        current_value: "保养权益包",
+        note: "展示样例：官网优惠页监控项"
+      }
+    ]
+  },
+  {
+    id: uuid(),
+    title: "BYD UAE Sealion 7 进入限时权益追踪",
+    summary: "用于演示官网价格追踪：Sealion 7 以金融方案和保险权益形成促销组合。",
+    original_text: "",
+    url: "https://www.byduae.ae/en/",
+    source: "BYD UAE Official Offers",
+    date: d(-2),
+    brand: "BYD 比亚迪",
+    type: NewsType.COMPETITOR_TACTICS,
+    sentiment: "neutral",
+    tags: ["价格追踪", "限时权益", "Sealion 7"],
+    model: "Sealion 7",
+    msrp: "169,900",
+    currency: "AED",
+    strategySignals: [
+      {
+        category: "insurance",
+        action: "新增首年保险权益，降低首年拥车成本",
+        model: "Sealion 7",
+        msrp: "169,900",
+        currency: "AED",
+        previous_value: "无首年保险",
+        current_value: "首年保险权益",
+        note: "展示样例：基于 BYD UAE 官方优惠页监控"
+      },
+      {
+        category: "finance",
+        action: "月供门槛下探，强化新能源 SUV 转化",
+        model: "Sealion 7",
+        currency: "AED",
+        previous_value: "AED 3,250/月",
+        current_value: "AED 2,890/月",
+        note: "展示样例：价格/金融组合促销"
+      }
+    ]
+  },
+  {
+    id: uuid(),
+    title: "iCAUR UAE V27 REEV 官方优惠进入奇瑞体系追踪",
+    summary: "用于演示官网价格追踪：iCAUR 作为奇瑞体系新能源越野品牌，V27 REEV 进入促销变化监控。",
+    original_text: "",
+    url: "https://icauruae.com/",
+    source: "iCAUR UAE Official Offers",
+    date: d(-3),
+    brand: "Chery iCAUR",
+    type: NewsType.COMPETITOR_TACTICS,
+    sentiment: "neutral",
+    tags: ["价格追踪", "REEV", "官方优惠"],
+    model: "V27 REEV",
+    msrp: "139,900",
+    currency: "AED",
+    strategySignals: [
+      {
+        category: "price",
+        action: "预售展示价下探，强化增程越野 SUV 入门吸引力",
+        model: "V27 REEV",
+        msrp: "139,900",
+        currency: "AED",
+        previous_value: "AED 149,900",
+        current_value: "AED 139,900",
+        note: "展示样例：基于 iCAUR UAE 官方优惠页监控"
+      },
+      {
+        category: "trade_in",
+        action: "置换补贴加入报价口径，推动燃油 SUV 用户转化",
+        model: "V27 REEV",
+        currency: "AED",
+        current_value: "AED 5,000 置换补贴",
+        note: "展示样例：价格/置换组合促销"
+      }
+    ]
   },
 
   // --- FILLER DATA (For Charts) ---

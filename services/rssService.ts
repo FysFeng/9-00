@@ -100,6 +100,7 @@ const BRAND_HINT_PATTERNS = [
     /\bbyd\b/i,
     /\bgeely\b/i,
     /\bchery\b/i,
+    /\bicaur\b/i,
     /\bjaecoo\b/i,
     /\bomoda\b/i,
     /\bmg\b/i,

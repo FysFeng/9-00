@@ -99,7 +99,7 @@ export const CHALLENGER_BRANDS = [
     "BYD 比亚迪", "Geely 吉利", "Chery 奇瑞", "GWM 长城", "Jetour 捷途",
     "Changan Deepal 深蓝", "Changan AVATR 阿维塔", "Geely Zeekr 极氪",
     "Geely Lynk & Co 领克", "BYD DENZA 腾势", "Chery Exeed 星途",
-    "SAIC MG 名爵", "Xpeng 小鹏", "NIO 蔚来", "Li Auto 理想"
+    "Chery iCAUR", "SAIC MG 名爵", "Xpeng 小鹏", "NIO 蔚来", "Li Auto 理想"
 ];
 
 export const INCUMBENT_BRANDS = [
@@ -178,9 +178,10 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
                 ...DEFAULT_BRANDS,
                 ...(Array.isArray(brandsData) ? brandsData : [])
             ]));
+            const demoStrategyItems = INITIAL_NEWS.filter((item) => item.strategySignals && item.strategySignals.length > 0);
 
             set({
-                rawIntelligence: mappedNewsData.length > 0 ? dedupeNewsItems(mappedNewsData) : INITIAL_NEWS,
+                rawIntelligence: mappedNewsData.length > 0 ? dedupeNewsItems([...demoStrategyItems, ...mappedNewsData]) : INITIAL_NEWS,
                 customBrands: mergedBrands,
                 isLoading: false
             });

@@ -21,6 +21,27 @@ const FIXED_SOURCES = [
     { name: 'RTA Dubai News', url: 'https://www.rta.ae/wps/content/connect/rta/site/en/news/all-news-feed' },
 ];
 
+const OFFICIAL_OFFER_SOURCES = [
+    {
+        name: 'Geely UAE Official Offers',
+        brand: 'Geely 吉利',
+        url: 'https://www.geely.ae/en',
+        linkKeywords: ['offer', 'offers', 'special-offers', 'price', 'finance', 'promotion'],
+    },
+    {
+        name: 'BYD UAE Official Offers',
+        brand: 'BYD 比亚迪',
+        url: 'https://www.byduae.ae/en/',
+        linkKeywords: ['offer', 'offers', 'exclusive-offers', 'price', 'finance', 'promotion'],
+    },
+    {
+        name: 'iCAUR UAE Official Offers',
+        brand: 'Chery iCAUR',
+        url: 'https://icauruae.com/',
+        linkKeywords: ['offer', 'offers', 'price', 'finance', 'promotion'],
+    },
+];
+
 const NITTER_INSTANCES = [
     'https://nitter.privacydev.net',
     'https://nitter.42l.fr',
@@ -59,10 +80,13 @@ const GOOGLE_NEWS_KEYWORDS = [
     'Changan Uni UAE price',
     'Changan electric vehicle UAE',
     'BYD UAE price',
+    'site:byduae.ae/en BYD UAE offers price',
     'MG Motor UAE new model',
     'Chery Tiggo UAE launch',
     'Omoda UAE price',
+    'site:icauruae.com iCAUR UAE offers price',
     'Geely Monjaro UAE',
+    'site:geely.ae/en Geely UAE offers price',
     'GAC Aion UAE electric',
     'Jetour UAE launch',
     'UAE car sales figures',
@@ -160,6 +184,7 @@ const BRAND_PATTERNS = [
     /\bzeekr\b/i,
     /\blink\s*&\s*co\b/i,
     /\bchery\b/i,
+    /\bicaur\b/i,
     /\bexeed\b/i,
     /\bjaecoo\b/i,
     /\bomoda\b/i,
@@ -331,6 +356,71 @@ function extractFeedItems(source, xml, cutoffTime, maxItems = 10) {
     }
 
     return items;
+}
+
+function resolveUrl(baseUrl, href = '') {
+    try {
+        return new URL(href, baseUrl).toString();
+    } catch {
+        return '';
+    }
+}
+
+async function fetchOfficialOfferSource(source) {
+    try {
+        const controller = new AbortController();
+        const timerId = setTimeout(() => controller.abort(), 12000);
+        const response = await fetch(source.url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            signal: controller.signal,
+            redirect: 'follow',
+        });
+        clearTimeout(timerId);
+        if (!response.ok) return [];
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const today = new Date().toISOString().split('T')[0];
+        const rawDate = Date.now();
+        const items = [{
+            source: source.name,
+            title: `${source.brand} UAE official offers / price tracker`,
+            url: source.url,
+            date: today,
+            rawDate,
+            snippet: `${source.brand} UAE official offers and price promotion page candidate for price tracking.`,
+        }];
+        const seen = new Set([normalizeUrl(source.url)]);
+
+        $('a[href]').each((_, el) => {
+            if (items.length >= 6) return false;
+            const href = $(el).attr('href') || '';
+            const absoluteUrl = resolveUrl(source.url, href);
+            const text = $(el).text().replace(/\s+/g, ' ').trim();
+            const haystack = `${href} ${text}`.toLowerCase();
+            const isRelevant = source.linkKeywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
+            const normalizedUrl = normalizeUrl(absoluteUrl);
+
+            if (!absoluteUrl || !isRelevant || seen.has(normalizedUrl)) return undefined;
+            seen.add(normalizedUrl);
+            items.push({
+                source: source.name,
+                title: text || `${source.brand} official offer page`,
+                url: absoluteUrl,
+                date: today,
+                rawDate,
+                snippet: `${source.brand} UAE official offer or price promotion page: ${text || absoluteUrl}`,
+            });
+            return undefined;
+        });
+
+        return items;
+    } catch {
+        return [];
+    }
 }
 
 async function fetchSingleRSS(source, cutoffTime) {
@@ -543,7 +633,9 @@ export default async function handler(req, res) {
 
     try {
         const cutoffTime = Date.now() - 24 * 60 * 60 * 1000;
-        const results = await Promise.all(ALL_SOURCES.map((source) => fetchSingleRSS(source, cutoffTime)));
+        const rssResults = await Promise.all(ALL_SOURCES.map((source) => fetchSingleRSS(source, cutoffTime)));
+        const officialOfferResults = await Promise.all(OFFICIAL_OFFER_SOURCES.map((source) => fetchOfficialOfferSource(source)));
+        const results = [...rssResults, ...officialOfferResults];
 
         const seen = new Set();
         const rawItems = results
