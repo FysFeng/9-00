@@ -39,8 +39,54 @@ const HEATMAP_PRIORITY_BRANDS = [
     'Changan 长安',
     'BYD 比亚迪',
     'Geely 吉利',
-    'Chery 奇瑞',
+    'Chery iCAUR',
+    'Omoda & Jaecoo',
+    'GWM 长城',
+    'Jetour 捷途',
 ];
+
+const BRAND_NORMALIZATION_RULES: Array<{ label: string; patterns: RegExp[] }> = [
+    { label: 'BYD 比亚迪', patterns: [/\bbyd\b/i, /比亚迪/] },
+    { label: 'Geely Zeekr 极氪', patterns: [/\bzeekr\b/i, /极氪/] },
+    { label: 'Geely 吉利', patterns: [/\bgeely\b/i, /吉利/] },
+    { label: 'Chery iCAUR', patterns: [/\bicaur\b/i, /\bicaur\b/i] },
+    { label: 'Omoda & Jaecoo', patterns: [/\bomoda\b/i, /\bjaecoo\b/i] },
+    { label: 'GWM 长城', patterns: [/\bgwm\b/i, /\bhaval\b/i, /\btank\b/i, /长城/] },
+    { label: 'Jetour 捷途', patterns: [/\bjetour\b/i, /捷途/] },
+    { label: 'MG 名爵', patterns: [/\bmg\b/i, /名爵/] },
+    { label: 'Kia 起亚', patterns: [/\bkia\b/i, /起亚/] },
+    { label: 'Toyota 丰田', patterns: [/\btoyota\b/i, /丰田/] },
+    { label: 'Ford 福特', patterns: [/\bford\b/i, /福特/] },
+    { label: 'Tesla 特斯拉', patterns: [/\btesla\b/i, /特斯拉/] },
+    { label: 'Nissan 日产', patterns: [/\bnissan\b/i, /日产/] },
+    { label: 'BMW 宝马', patterns: [/\bbmw\b/i, /宝马/] },
+    { label: 'Lexus 雷克萨斯', patterns: [/\blexus\b/i, /雷克萨斯/] },
+    { label: 'Li Auto 理想', patterns: [/\bli auto\b/i, /理想/] },
+];
+
+const getHeatmapBrandName = (brand: string = '') => {
+    const trimmed = brand.trim();
+    if (!trimmed) return '';
+
+    const lower = trimmed.toLowerCase();
+    if (
+        lower === 'other'
+        || lower.startsWith('other ')
+        || lower.includes('policy')
+        || lower.includes('rta')
+        || trimmed.includes('政策')
+        || trimmed.includes('鏀跨瓥')
+    ) {
+        return '';
+    }
+
+    const matchedRule = BRAND_NORMALIZATION_RULES.find((rule) =>
+        rule.patterns.some((pattern) => pattern.test(trimmed)),
+    );
+    return matchedRule?.label || trimmed;
+};
+
+const heatmapBrandMatcher = (itemBrand: string, targetBrand: string) => getHeatmapBrandName(itemBrand) === targetBrand;
 
 function SectionHeader({ title, subtitle, accent }: { title: string; subtitle?: string; accent?: string }) {
     return (
@@ -189,42 +235,58 @@ const Dashboard: React.FC = () => {
     const { rawIntelligence, filters, customBrands, salesViewMode } = useIntelligenceStore();
 
     const visibleBrands = useMemo(() => {
-        return filters.selectedBrands.length > 0 ? filters.selectedBrands : customBrands;
-    }, [filters.selectedBrands, customBrands]);
+        const sourceBrands = filters.selectedBrands.length > 0
+            ? filters.selectedBrands
+            : rawIntelligence.map((item) => item.brand);
+        const normalizedBrands = sourceBrands
+            .map(getHeatmapBrandName)
+            .filter(Boolean);
+
+        return Array.from(new Set(normalizedBrands.length > 0 ? normalizedBrands : customBrands));
+    }, [filters.selectedBrands, customBrands, rawIntelligence]);
 
     const filteredGlobalNews = useMemo(() => {
+        const selectedBrands = new Set(filters.selectedBrands.map(getHeatmapBrandName).filter(Boolean));
         return rawIntelligence.filter((item) => {
             const startMatch = !filters.startDate || item.date >= filters.startDate;
             const endMatch = !filters.endDate || item.date <= filters.endDate;
             const typeMatch = filters.selectedTypes.length === 0 || filters.selectedTypes.includes(item.type);
-            const brandMatch = visibleBrands.includes(item.brand);
+            const brandName = getHeatmapBrandName(item.brand);
+            const brandMatch = selectedBrands.size === 0 || selectedBrands.has(brandName);
             return startMatch && endMatch && typeMatch && brandMatch;
         });
-    }, [rawIntelligence, filters.startDate, filters.endDate, filters.selectedTypes, visibleBrands]);
+    }, [rawIntelligence, filters.startDate, filters.endDate, filters.selectedTypes, filters.selectedBrands]);
 
     const topBrands = useMemo(() => {
         const priorityRank = new Map(HEATMAP_PRIORITY_BRANDS.map((brand, index) => [brand, index]));
-        const counts = visibleBrands
-            .map((brand) => ({
-                name: brand,
-                count: filteredGlobalNews.filter((item) => item.brand === brand).length,
-                priority: priorityRank.get(brand) ?? 999,
-            }))
-            .filter((brand) => brand.count > 0);
+        const countMap = new Map<string, number>();
+        filteredGlobalNews.forEach((item) => {
+            const brandName = getHeatmapBrandName(item.brand);
+            if (!brandName) return;
+            countMap.set(brandName, (countMap.get(brandName) || 0) + 1);
+        });
+        const counts = Array.from(countMap.entries()).map(([name, count]) => ({
+            name,
+            count,
+            priority: priorityRank.get(name) ?? 999,
+        }));
         const sortedBrands = counts
             .sort((a, b) => (b.count - a.count) || (a.priority - b.priority) || a.name.localeCompare(b.name))
             .map((brand) => brand.name);
 
         return sortedBrands.slice(0, 5);
-    }, [visibleBrands, filteredGlobalNews]);
+    }, [filteredGlobalNews]);
 
-    const heatmapData = useMemo(() => generateHeatmapData(filteredGlobalNews, topBrands, 28), [filteredGlobalNews, topBrands]);
+    const heatmapData = useMemo(
+        () => generateHeatmapData(filteredGlobalNews, topBrands, 28, heatmapBrandMatcher),
+        [filteredGlobalNews, topBrands],
+    );
     const heatmapDates = useMemo(() => Array.from(new Set(heatmapData.map((item) => item.date))).sort(), [heatmapData]);
     const heatmapRangeLabel = heatmapDates.length > 0 ? `${heatmapDates[0]} 至 ${heatmapDates[heatmapDates.length - 1]}` : '暂无数据';
 
     const brandCards = useMemo(() => {
         const coreFocusBrands = topBrands.length > 0 ? topBrands.slice(0, 4) : visibleBrands.slice(0, 4);
-        return coreFocusBrands.map((brand) => getBrandProfile(brand, filteredGlobalNews));
+        return coreFocusBrands.map((brand) => getBrandProfile(brand, filteredGlobalNews, heatmapBrandMatcher));
     }, [filteredGlobalNews, topBrands, visibleBrands]);
 
     const latestNews = useMemo(

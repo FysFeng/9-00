@@ -17,7 +17,16 @@ export interface BrandStrategyProfile {
     launchRatio: number;
 }
 
-export const generateHeatmapData = (news: NewsItem[], brands: string[], days: number = 14): HeatmapDataPoint[] => {
+type BrandMatcher = (itemBrand: string, targetBrand: string) => boolean;
+
+const exactBrandMatcher: BrandMatcher = (itemBrand, targetBrand) => itemBrand === targetBrand;
+
+export const generateHeatmapData = (
+    news: NewsItem[],
+    brands: string[],
+    days: number = 14,
+    brandMatcher: BrandMatcher = exactBrandMatcher,
+): HeatmapDataPoint[] => {
     const data: HeatmapDataPoint[] = [];
     const sortedDates = news
         .map((item) => item.date)
@@ -34,7 +43,7 @@ export const generateHeatmapData = (news: NewsItem[], brands: string[], days: nu
 
     brands.forEach((brand) => {
         dateRange.forEach((date) => {
-            const count = news.filter((item) => item.brand === brand && item.date === date).length;
+            const count = news.filter((item) => brandMatcher(item.brand, brand) && item.date === date).length;
             const intensity = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 4;
             data.push({ date, brand, count, intensity });
         });
@@ -43,8 +52,12 @@ export const generateHeatmapData = (news: NewsItem[], brands: string[], days: nu
     return data;
 };
 
-export const getBrandProfile = (brand: string, news: NewsItem[]): BrandStrategyProfile => {
-    const brandNews = news.filter((item) => item.brand === brand);
+export const getBrandProfile = (
+    brand: string,
+    news: NewsItem[],
+    brandMatcher: BrandMatcher = exactBrandMatcher,
+): BrandStrategyProfile => {
+    const brandNews = news.filter((item) => brandMatcher(item.brand, brand));
     const total = brandNews.length;
 
     if (total === 0) {
