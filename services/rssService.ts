@@ -1,4 +1,5 @@
 import { NewsItem, NewsType, StrategySignal } from '../types';
+import { CANONICAL_BRANDS, normalizeNewsBrand } from '../utils/brandNormalization';
 
 export interface RawRSSItem {
     source: string;
@@ -174,7 +175,7 @@ function createFallbackItem(
 ): NewsItem {
     return {
         id: uid(),
-        brand: 'Other',
+        brand: normalizeNewsBrand(item),
         date: item.date,
         type: NewsType.OTHER,
         title: item.title,
@@ -207,6 +208,7 @@ async function qwenExtract(item: RawRSSItem): Promise<{
     item: NewsItem | null;
     reason?: string;
 }> {
+    const brandList = CANONICAL_BRANDS.join(', ');
     const systemPrompt = `You are a UAE automotive news screener.
 Judge whether the item is directly relevant to the UAE automotive market and return strict JSON only.
 
@@ -218,7 +220,7 @@ If not relevant, return:
 If relevant, return:
 {
   "relevant": true,
-  "brand": "Brand name, policy related, or Other",
+  "brand": "One of: ${brandList}, 政策相关, or Other 其他品牌",
   "chineseTitle": "Chinese headline within 18 chars",
   "type": "One of: Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
   "summary": "1-2 sentence factual Chinese summary with no recommendation or inference",
@@ -243,6 +245,8 @@ If relevant, return:
 
 Rules:
 - Only include strategy_signals when the source explicitly describes a concrete tactic move.
+- If a brand is recognizable, use the exact canonical brand name from the allowed brand list.
+- Examples: BYD => BYD 比亚迪; GWM/Haval/Tank => GWM 长城; iCAUR => Chery iCAUR; OMODA/JAECOO => Omoda & Jaecoo.
 - Good examples: 0 down payment, AED 45,000 cash discount, discount reduced from AED 50,000 to AED 45,000, free insurance, extended warranty, trade-in bonus, dealer expansion, stock arrival.
 - Do not guess product names, old prices, reasons, or business implications.
 - Summary must stay factual.`;
@@ -304,7 +308,14 @@ Rules:
             status: 'imported',
             item: {
                 id: uid(),
-                brand: parsed.brand || 'Other',
+                brand: normalizeNewsBrand({
+                    brand: parsed.brand || '',
+                    title: item.title,
+                    summary: item.snippet,
+                    source: item.source,
+                    url: item.url,
+                    model: parsed.model,
+                }),
                 date: item.date,
                 type: parsedType,
                 title: parsed.chineseTitle || item.title,

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { NewsItem, FilterState, NewsType } from '../../types';
 import { NEWS_TYPES_LIST, INITIAL_NEWS, DEFAULT_BRANDS } from '../../constants';
+import { normalizeNewsBrand } from '../../utils/brandNormalization';
 
 export enum SalesViewMode {
     ALL_MARKET = "ALL_MARKET",
@@ -167,7 +168,11 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
                     case 'Corp & Strategy': mappedType = NewsType.CORP_STRATEGY; break;
                     case 'Other': mappedType = NewsType.OTHER; break;
                 }
-                return { ...item, type: mappedType };
+                return {
+                    ...item,
+                    brand: normalizeNewsBrand(item),
+                    type: mappedType,
+                };
             });
 
             const brandsRes = await fetch(`/api/data?type=brands&_t=${Date.now()}`, { cache: 'no-store' });
@@ -177,7 +182,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
             const mergedBrands = Array.from(new Set([
                 ...DEFAULT_BRANDS,
                 ...(Array.isArray(brandsData) ? brandsData : [])
-            ]));
+            ].map((brand) => normalizeNewsBrand({ brand })).filter(Boolean)));
             const demoStrategyItems = INITIAL_NEWS.filter((item) => item.strategySignals && item.strategySignals.length > 0);
 
             set({

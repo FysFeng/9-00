@@ -132,6 +132,75 @@ const ALLOWED_SIGNAL_CATEGORIES = new Set([
     'other',
 ]);
 
+const CANONICAL_BRANDS = [
+    'Changan 长安',
+    'BYD 比亚迪',
+    'Geely 吉利',
+    'Geely Zeekr 极氪',
+    'Chery 奇瑞',
+    'Chery iCAUR',
+    'Omoda & Jaecoo',
+    'GWM 长城',
+    'Jetour 捷途',
+    'SAIC MG 名爵',
+    'GAC 广汽',
+    'Toyota 丰田',
+    'Nissan 日产',
+    'Hyundai 现代',
+    'Kia 起亚',
+    'Ford 福特',
+    'Chevrolet 雪佛兰',
+    'Lexus 雷克萨斯',
+    'BMW 宝马',
+    'Audi 奥迪',
+    'Tesla 特斯拉',
+    'Volvo 沃尔沃',
+    'Lotus 路特斯',
+    'Mitsubishi 三菱',
+    'JAC 江淮',
+    'MHERO 猛士',
+];
+
+const BRAND_NORMALIZATION_RULES = [
+    { label: 'Changan 长安', patterns: [/\bchangan\b/i, /长安/, /闀垮畨/] },
+    { label: 'BYD 比亚迪', patterns: [/\bbyd\b/i, /比亚迪/, /姣斾簹杩/] },
+    { label: 'Geely Zeekr 极氪', patterns: [/\bzeekr\b/i, /极氪/, /鏋佹蔼/] },
+    { label: 'Geely 吉利', patterns: [/\bgeely\b/i, /吉利/, /鍚夊埄/] },
+    { label: 'Chery iCAUR', patterns: [/\bicaur\b/i, /iCaur/i] },
+    { label: 'Chery 奇瑞', patterns: [/\bchery\b/i, /奇瑞/, /濂囩憺/] },
+    { label: 'Omoda & Jaecoo', patterns: [/\bomoda\b/i, /\bjaecoo\b/i, /欧萌达/] },
+    { label: 'GWM 长城', patterns: [/\bgwm\b/i, /\bhaval\b/i, /\btank\b/i, /长城/, /坦克/] },
+    { label: 'Jetour 捷途', patterns: [/\bjetour\b/i, /捷途/, /鎹烽/] },
+    { label: 'SAIC MG 名爵', patterns: [/\bmg\b/i, /名爵/] },
+    { label: 'GAC 广汽', patterns: [/\bgac\b/i, /\baion\b/i, /广汽/, /埃安/] },
+    { label: 'Toyota 丰田', patterns: [/\btoyota\b/i, /丰田/, /涓扮敯/] },
+    { label: 'Nissan 日产', patterns: [/\bnissan\b/i, /日产/, /鏃ヤ骇/] },
+    { label: 'Hyundai 现代', patterns: [/\bhyundai\b/i, /现代/] },
+    { label: 'Kia 起亚', patterns: [/\bkia\b/i, /起亚/, /璧蜂簹/] },
+    { label: 'Ford 福特', patterns: [/\bford\b/i, /福特/, /绂忕壒/] },
+    { label: 'Lexus 雷克萨斯', patterns: [/\blexus\b/i, /雷克萨斯/] },
+    { label: 'BMW 宝马', patterns: [/\bbmw\b/i, /宝马/] },
+    { label: 'Audi 奥迪', patterns: [/\baudi\b/i, /奥迪/] },
+    { label: 'Tesla 特斯拉', patterns: [/\btesla\b/i, /特斯拉/] },
+    { label: 'Volvo 沃尔沃', patterns: [/\bvolvo\b/i, /沃尔沃/] },
+    { label: 'Lotus 路特斯', patterns: [/\blotus\b/i, /路特斯/] },
+    { label: 'Mitsubishi 三菱', patterns: [/\bmitsubishi\b/i, /三菱/] },
+    { label: 'JAC 江淮', patterns: [/\bjac\b/i, /江淮/] },
+    { label: 'MHERO 猛士', patterns: [/\bmhero\b/i, /猛士/] },
+];
+
+function normalizeNewsBrand(item = {}) {
+    const rawBrand = String(item.brand || '').trim();
+    const haystack = [item.brand, item.title, item.summary, item.snippet, item.model, item.source, item.url]
+        .filter(Boolean)
+        .join(' ');
+    const matchedRule = BRAND_NORMALIZATION_RULES.find((rule) => rule.patterns.some((pattern) => pattern.test(haystack)));
+    if (matchedRule) return matchedRule.label;
+    if (!rawBrand || /\bother\b/i.test(rawBrand)) return 'Other 其他品牌';
+    if (/\bpolicy\b/i.test(rawBrand) || rawBrand.includes('政策') || rawBrand.includes('鏀跨瓥')) return '政策相关';
+    return rawBrand;
+}
+
 function normalizeText(value = '') {
     return value
         .toLowerCase()
@@ -473,6 +542,7 @@ async function callQwen(apiKey, messages, temperature = 0.1) {
 }
 
 async function qwenAnalyzeItem(item, apiKey) {
+    const brandList = CANONICAL_BRANDS.join(', ');
     const systemPrompt = `You are a UAE automotive news screener.
 Judge whether the item is directly relevant to the UAE automotive market and return strict JSON only.
 
@@ -484,7 +554,7 @@ If not relevant, return:
 If relevant, return:
 {
   "relevant": true,
-  "brand": "Brand name, 政策相关, or Other",
+  "brand": "One of: ${brandList}, 政策相关, or Other 其他品牌",
   "chineseTitle": "Chinese headline within 18 chars",
   "type": "One of: Launch (Physical), Tech & OTA, Market & Sales, Policy & Regulation, Network & Service, Competitor Tactics, Corp & Strategy, Other",
   "summary": "1-2 sentence factual Chinese summary",
@@ -509,6 +579,8 @@ If relevant, return:
 
 Rules:
 - strategy_signals must stay empty unless the source explicitly states a tactic move.
+- If a brand is recognizable, use the exact canonical brand name from the allowed brand list.
+- Examples: BYD => BYD 比亚迪; GWM/Haval/Tank => GWM 长城; iCAUR => Chery iCAUR; OMODA/JAECOO => Omoda & Jaecoo.
 - Good examples: 0 down payment, cash discount, reduced discount, free insurance, warranty extension, trade-in subsidy, dealer expansion, stock arrival.
 - Do not infer reasons, opportunities, or business impact.`;
 
@@ -528,7 +600,14 @@ Rules:
 
         return {
             id: `cron-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            brand: parsed.brand || 'Other',
+            brand: normalizeNewsBrand({
+                brand: parsed.brand || '',
+                title: item.title,
+                summary: item.snippet,
+                source: item.source,
+                url: item.url,
+                model: parsed.model,
+            }),
             date: item.date,
             type: parsed.type || 'Other',
             title: parsed.chineseTitle || item.title,

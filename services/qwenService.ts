@@ -1,5 +1,6 @@
 import { NewsType, SentimentType, NewsItem, StrategySignal } from '../types';
 import { DEFAULT_BRANDS } from '../constants';
+import { CANONICAL_BRANDS, normalizeNewsBrand } from '../utils/brandNormalization';
 
 export interface ExtractedNewsData {
   title: string;
@@ -127,7 +128,13 @@ const fetchAnalyze = async (text: string, prompt: string) => {
 const normalizeExtractedData = (parsed: Partial<ExtractedNewsData>): ExtractedNewsData => ({
   title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '未命名资讯',
   summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
-  brand: typeof parsed.brand === 'string' && parsed.brand.trim() ? parsed.brand.trim() : 'Other',
+  brand: normalizeNewsBrand({
+    brand: typeof parsed.brand === 'string' ? parsed.brand : '',
+    title: typeof parsed.title === 'string' ? parsed.title : '',
+    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    model: typeof parsed.model === 'string' ? parsed.model : '',
+    url: typeof parsed.url === 'string' ? parsed.url : '',
+  }),
   type: ALLOWED_NEWS_TYPES.has(parsed.type as NewsType) ? parsed.type as NewsType : NewsType.OTHER,
   date: typeof parsed.date === 'string' && parsed.date.trim() ? parsed.date.trim() : today,
   url: typeof parsed.url === 'string' ? parsed.url.trim() : '',
@@ -144,7 +151,7 @@ export const analyzeTextWithQwen = async (
   text: string,
   currentBrands: string[] = DEFAULT_BRANDS,
 ): Promise<ExtractedNewsData> => {
-  const brandsToPrompt = Array.from(new Set([...DEFAULT_BRANDS, ...currentBrands]));
+  const brandsToPrompt = Array.from(new Set([...DEFAULT_BRANDS, ...CANONICAL_BRANDS, ...currentBrands]));
   const brandsString = brandsToPrompt.join(', ');
 
   const systemPrompt = `You are an automotive news extraction engine for the UAE market.
@@ -179,6 +186,7 @@ Rules:
 - If the date is unclear, use ${today}.
 - If the URL is unclear, use an empty string.
 - If the brand is not in the allowed list, use "Other".
+- Use canonical brand names when aliases are present. Examples: BYD => BYD 比亚迪; GWM/Haval/Tank => GWM 长城; iCAUR => Chery iCAUR; OMODA/JAECOO => Omoda & Jaecoo.
 
 Output JSON:
 {
@@ -210,13 +218,13 @@ Output JSON:
 
   try {
     const parsed = await fetchAnalyze(text, systemPrompt) as ExtractedNewsData;
-    return {
+    return normalizeExtractedData({
       ...parsed,
       model: typeof (parsed as any).model === 'string' ? (parsed as any).model.trim() : '',
       msrp: typeof (parsed as any).msrp === 'string' ? (parsed as any).msrp.trim() : '',
       currency: typeof (parsed as any).currency === 'string' ? (parsed as any).currency.trim() : '',
       strategy_signals: normalizeStrategySignals(parsed.strategy_signals),
-    };
+    });
   } catch (error: any) {
     console.error('Qwen Analysis Failed:', error);
     throw new Error(error.message || '智能分析服务暂时不可用');
