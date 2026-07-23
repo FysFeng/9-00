@@ -132,6 +132,53 @@ const LOW_VALUE_HINT_PATTERNS = [
     /\bsecond[- ]hand car(s)?\b/i,
 ];
 
+const HARD_EXCLUDE_HINT_PATTERNS = [
+    /\bused\b/i,
+    /\bpre[- ]?owned\b/i,
+    /\bsecond[- ]?hand\b/i,
+    /\bclassified(s)?\b/i,
+    /\blisting(s)?\b/i,
+    /\bfor sale\b/i,
+    /\bresale\b/i,
+    /\bauction\b/i,
+    /\bfuel price(s)?\b/i,
+    /\bpetrol price(s)?\b/i,
+    /\bdiesel price(s)?\b/i,
+    /\btraffic accident\b/i,
+    /\broad closure\b/i,
+    /\bparking fine(s)?\b/i,
+    /\bspeed limit\b/i,
+];
+
+const HIGH_VALUE_HINT_PATTERNS = [
+    /\blaunch(ed|es)?\b/i,
+    /\bunveil(ed|s)?\b/i,
+    /\bdebut(s|ed)?\b/i,
+    /\bintroduc(ed|es|ing)\b/i,
+    /\bshowroom\b/i,
+    /\bdistributor\b/i,
+    /\bdealer(ship)?\b/i,
+    /\bofficial\b/i,
+    /\brecall\b/i,
+    /\bregulation\b/i,
+    /\bpolicy\b/i,
+    /\bregistration\b/i,
+    /\bfleet\b/i,
+    /\bdelivery\b/i,
+    /\bsales\b/i,
+    /\bmarket share\b/i,
+    /\bev charging\b/i,
+];
+
+const GENERIC_PRICE_NOISE_HINT_PATTERNS = [
+    /\bprice list\b/i,
+    /\bprices in uae\b/i,
+    /\bbest price\b/i,
+    /\bcheapest\b/i,
+    /\bdiscount code\b/i,
+    /\bdeal(s)?\b/i,
+];
+
 function countMatches(patterns: RegExp[], text: string): number {
     return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
 }
@@ -195,11 +242,23 @@ function shouldFallbackWhenRejected(item: RawRSSItem): boolean {
     const autoSignals = countMatches(AUTO_HINT_PATTERNS, haystack);
     const marketSignals = countMatches(MARKET_HINT_PATTERNS, haystack);
     const lowValueSignals = countMatches(LOW_VALUE_HINT_PATTERNS, haystack);
+    const hardExcludeSignals = countMatches(HARD_EXCLUDE_HINT_PATTERNS, haystack);
+    const highValueSignals = countMatches(HIGH_VALUE_HINT_PATTERNS, haystack);
+    const genericPriceNoiseSignals = countMatches(GENERIC_PRICE_NOISE_HINT_PATTERNS, haystack);
 
+    if (hardExcludeSignals > 0 && highValueSignals === 0) return false;
+    if (genericPriceNoiseSignals > 0 && highValueSignals === 0) return false;
     if (lowValueSignals > 0 && brandSignals === 0 && marketSignals === 0) return false;
     if (brandSignals === 0) return false;
 
-    const relevanceScore = (uaeSignals * 4) + (brandSignals * 3) + (autoSignals * 2) + (marketSignals * 2) - (lowValueSignals * 5);
+    const relevanceScore = (uaeSignals * 4)
+        + (brandSignals * 3)
+        + (autoSignals * 2)
+        + (marketSignals * 2)
+        + highValueSignals
+        - (lowValueSignals * 5)
+        - (hardExcludeSignals * 8)
+        - (genericPriceNoiseSignals * 4);
     return relevanceScore >= 10;
 }
 

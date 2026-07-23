@@ -77,18 +77,27 @@ const GOOGLE_NEWS_KEYWORDS = [
     'site:wam.ae UAE electric vehicle policy',
     'site:rta.ae Dubai vehicle registration policy',
     'Changan car UAE launch',
-    'Changan Uni UAE price',
-    'Changan electric vehicle UAE',
-    'BYD UAE price',
+    'Changan UAE showroom',
+    'Changan UAE dealer network',
+    'Changan electric vehicle UAE launch',
+    'BYD UAE launch',
+    'BYD UAE showroom',
     'site:byduae.ae/en BYD UAE offers price',
-    'MG Motor UAE new model',
+    'MG Motor UAE launch',
+    'MG Motor UAE showroom',
     'Chery Tiggo UAE launch',
-    'Omoda UAE price',
+    'Chery UAE showroom',
+    'Omoda Jaecoo UAE launch',
     'site:icauruae.com iCAUR UAE offers price',
-    'Geely Monjaro UAE',
+    'Geely UAE launch',
+    'Geely UAE showroom',
     'site:geely.ae/en Geely UAE offers price',
-    'GAC Aion UAE electric',
+    'Zeekr UAE launch',
+    'GWM UAE showroom',
+    'Tank UAE launch',
+    'GAC Aion UAE launch',
     'Jetour UAE launch',
+    'Jetour UAE showroom',
     'UAE car sales figures',
     'Dubai Motor Show',
     'Dubai EV charging station DEWA',
@@ -329,6 +338,53 @@ const LOW_VALUE_PATTERNS = [
     /\bsecond[- ]hand car(s)?\b/i,
 ];
 
+const HARD_EXCLUDE_PATTERNS = [
+    /\bused\b/i,
+    /\bpre[- ]?owned\b/i,
+    /\bsecond[- ]?hand\b/i,
+    /\bclassified(s)?\b/i,
+    /\blisting(s)?\b/i,
+    /\bfor sale\b/i,
+    /\bresale\b/i,
+    /\bauction\b/i,
+    /\bfuel price(s)?\b/i,
+    /\bpetrol price(s)?\b/i,
+    /\bdiesel price(s)?\b/i,
+    /\btraffic accident\b/i,
+    /\broad closure\b/i,
+    /\bparking fine(s)?\b/i,
+    /\bspeed limit\b/i,
+];
+
+const HIGH_VALUE_PATTERNS = [
+    /\blaunch(ed|es)?\b/i,
+    /\bunveil(ed|s)?\b/i,
+    /\bdebut(s|ed)?\b/i,
+    /\bintroduc(ed|es|ing)\b/i,
+    /\bshowroom\b/i,
+    /\bdistributor\b/i,
+    /\bdealer(ship)?\b/i,
+    /\bofficial\b/i,
+    /\brecall\b/i,
+    /\bregulation\b/i,
+    /\bpolicy\b/i,
+    /\bregistration\b/i,
+    /\bfleet\b/i,
+    /\bdelivery\b/i,
+    /\bsales\b/i,
+    /\bmarket share\b/i,
+    /\bev charging\b/i,
+];
+
+const GENERIC_PRICE_NOISE_PATTERNS = [
+    /\bprice list\b/i,
+    /\bprices in uae\b/i,
+    /\bbest price\b/i,
+    /\bcheapest\b/i,
+    /\bdiscount code\b/i,
+    /\bdeal(s)?\b/i,
+];
+
 function countMatches(patterns, text) {
     return patterns.reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0);
 }
@@ -342,8 +398,20 @@ function scoreUaeAutomotiveRelevance(item) {
     const autoSignals = countMatches(AUTO_TOPIC_PATTERNS, haystack);
     const marketSignals = countMatches(MARKET_SIGNAL_PATTERNS, haystack);
     const lowValueSignals = countMatches(LOW_VALUE_PATTERNS, haystack);
-    const score = (uaeSignals * 4) + (brandSignals * 3) + (autoSignals * 2) + (marketSignals * 2) - (lowValueSignals * 5);
+    const hardExcludeSignals = countMatches(HARD_EXCLUDE_PATTERNS, haystack);
+    const highValueSignals = countMatches(HIGH_VALUE_PATTERNS, haystack);
+    const genericPriceNoiseSignals = countMatches(GENERIC_PRICE_NOISE_PATTERNS, haystack);
+    const score = (uaeSignals * 4)
+        + (brandSignals * 3)
+        + (autoSignals * 2)
+        + (marketSignals * 2)
+        + highValueSignals
+        - (lowValueSignals * 5)
+        - (hardExcludeSignals * 8)
+        - (genericPriceNoiseSignals * 4);
 
+    if (hardExcludeSignals > 0 && highValueSignals === 0) return { keep: false, score, reason: 'hard_excluded_low_value' };
+    if (genericPriceNoiseSignals > 0 && highValueSignals === 0) return { keep: false, score, reason: 'generic_price_noise' };
     if (lowValueSignals > 0 && brandSignals === 0 && marketSignals === 0) return { keep: false, score };
     if (brandSignals === 0 && autoSignals === 0) return { keep: false, score };
     if (brandSignals === 0 && marketSignals === 0) return { keep: false, score };
